@@ -1,0 +1,10 @@
+{
+    "name": "ai-ready/sylius-ucp",
+    "description": "UCP-Adapter (Universal Commerce Protocol, Google/Shopify) fuer Sylius",
+    "type": "sylius-plugin",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.5",
+        "sylius/sylius": "^2.0"
+    }
+}
