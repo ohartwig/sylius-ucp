@@ -1,10 +1,29 @@
 {
-    "name": "ai-ready/sylius-ucp",
-    "description": "UCP-Adapter (Universal Commerce Protocol, Google/Shopify) fuer Sylius",
-    "type": "sylius-plugin",
+    "name": "koh/sylius-ucp",
+    "description": "Universal Commerce Protocol (UCP) adapter for Sylius (Google/Shopify agentic-commerce standard).",
+    "type": "sylius-bundle",
     "license": "proprietary",
     "require": {
         "php": "^8.5",
         "sylius/sylius": "^2.0"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Koh\\SyliusUcp\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Koh\\SyliusUcp\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1-dev"
+        }
     }
 }
