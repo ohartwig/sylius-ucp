@@ -7,3 +7,5 @@ Adapter for the Universal Commerce Protocol (UCP) — open agentic-commerce stan
 ---
 
 Teil der **AI Ready Plattform** (Content-Commerce: Sylius × TYPO3). Status: Basis-Skeleton.
+
+<!-- release: enable initial release -->
