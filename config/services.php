@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
+use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
+
 return static function (ContainerConfigurator $container): void {
     $services = $container->services()
         ->defaults()
@@ -12,7 +14,11 @@ return static function (ContainerConfigurator $container): void {
 
     $services->load('Koh\\SyliusUcp\\', __DIR__ . '/../src/');
 
-    // Controllers are autoconfigured (tag controller.service_arguments).
+    // CartContextInterface + OrderTokenAssignerInterface autowire from Sylius;
+    // the order ObjectManager is ambiguous, so bind the Sylius order manager.
+    $services->get(\Koh\SyliusUcp\Service\CheckoutSessionCreator::class)
+        ->arg('$orderManager', service('sylius.manager.order'));
+
     $services->get(\Koh\SyliusUcp\Controller\UcpProfileController::class)
         ->arg('$version', '%koh_sylius_ucp.version%')
         ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%');
