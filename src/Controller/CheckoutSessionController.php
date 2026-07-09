@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Koh\SyliusUcp\Controller;
 
+use Koh\SyliusUcp\Service\CheckoutSessionCreator;
 use Sylius\Component\Product\Repository\ProductRepositoryInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -13,9 +14,6 @@ use Symfony\Component\Routing\Attribute\Route;
  * UCP REST capabilities (first pass): catalog listing + checkout-session creation.
  * Reads the agent profile from the `UCP-Agent` request header (capability
  * negotiation stub) and echoes the active capabilities under `ucp` per spec.
- *
- * TODO: real Sylius order/checkout creation (OrderFactory + cart context),
- * cart/order capabilities, AP2 CartMandate, RFC 9421 response signing.
  */
 final class CheckoutSessionController
 {
@@ -23,6 +21,7 @@ final class CheckoutSessionController
 
     public function __construct(
         private readonly ProductRepositoryInterface $productRepository,
+        private readonly CheckoutSessionCreator $checkoutSessionCreator,
         private readonly string $version = '2026-04-08',
     ) {
     }
@@ -42,12 +41,7 @@ final class CheckoutSessionController
     #[Route('/ucp/v1/checkout-sessions', name: 'koh_ucp_checkout_session', methods: ['POST'])]
     public function createSession(Request $request): JsonResponse
     {
-        // TODO: create a real Sylius cart/checkout (OrderFactory) and return its tokenValue.
-        $session = [
-            'id' => 'cs_' . bin2hex(random_bytes(12)),
-            'status' => 'open',
-            'line_items' => [],
-        ];
+        $session = $this->checkoutSessionCreator->create();
 
         return new JsonResponse($this->envelope(['checkout_session' => $session], $request), JsonResponse::HTTP_CREATED);
     }
