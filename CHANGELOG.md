@@ -1,3 +1,9 @@
+## [1.0.1](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.0.0...v1.0.1) (2026-07-11)
+
+### :bug: Fixes
+
+* correct OrderTokenAssigner for Sylius 2.2 + self-load UCP params ([ebac447](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/ebac447e467617616e0cf377c88f0de2a578c808))
+
 ## 1.0.0 (2026-07-09)
 
 ### :sparkles: Features
