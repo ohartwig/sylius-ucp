@@ -1,4 +1,0 @@
-# koh/sylius-ucp — Universal Commerce Protocol adapter settings.
-parameters:
-    koh_sylius_ucp.version: '2026-04-08'
-    koh_sylius_ucp.endpoint_base: '/ucp/v1'

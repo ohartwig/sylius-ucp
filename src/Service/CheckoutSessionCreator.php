@@ -6,7 +6,7 @@ namespace Koh\SyliusUcp\Service;
 
 use Doctrine\Persistence\ObjectManager;
 use Sylius\Component\Order\Context\CartContextInterface;
-use Sylius\Component\Order\OrderTokenAssignerInterface;
+use Sylius\Component\Core\TokenAssigner\OrderTokenAssignerInterface;
 
 /**
  * Creates a UCP checkout-session backed by a real Sylius cart (an order in the
@@ -34,7 +34,7 @@ final class CheckoutSessionCreator
     {
         $cart = $this->cartContext->getCart();
 
-        $this->orderTokenAssigner->assignTokenValueIfNotAssigned($cart);
+        $this->orderTokenAssigner->assignTokenValueIfNotSet($cart);
         $this->orderManager->persist($cart);
         $this->orderManager->flush();
 
