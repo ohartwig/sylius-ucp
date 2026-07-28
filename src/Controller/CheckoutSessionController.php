@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Koh\SyliusUcp\Controller;
 
 use Koh\SyliusUcp\Service\CheckoutSessionCreator;
+use Sylius\Component\Product\Model\ProductInterface;
 use Sylius\Component\Product\Repository\ProductRepositoryInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,6 +20,7 @@ final class CheckoutSessionController
 {
     private const ACTIVE = ['dev.ucp.shopping.catalog', 'dev.ucp.shopping.checkout'];
 
+    /** @param ProductRepositoryInterface<ProductInterface> $productRepository */
     public function __construct(
         private readonly ProductRepositoryInterface $productRepository,
         private readonly CheckoutSessionCreator $checkoutSessionCreator,

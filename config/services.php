@@ -24,4 +24,7 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%');
     $services->get(\Koh\SyliusUcp\Controller\CheckoutSessionController::class)
         ->arg('$version', '%koh_sylius_ucp.version%');
+
+    $services->get(\Koh\SyliusUcp\Agent\UcpEndpointProvider::class)
+        ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%');
 };

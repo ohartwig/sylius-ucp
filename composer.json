@@ -2,14 +2,16 @@
     "name": "koh/sylius-ucp",
     "description": "Universal Commerce Protocol (UCP) adapter for Sylius (Google/Shopify agentic-commerce standard).",
     "type": "sylius-bundle",
-    "license": "proprietary",
+    "license": "MIT",
     "require": {
-        "php": "^8.5",
+        "php": ">=8.2",
+        "koh/sylius-agent-contracts": "^1.1",
         "sylius/sylius": "^2.0"
     },
     "require-dev": {
-        "phpstan/phpstan": "^2.0",
-        "phpunit/phpunit": "^11.0"
+        "phpstan/phpstan": "*",
+        "phpunit/phpunit": "*",
+        "phpstan/extension-installer": "*"
     },
     "autoload": {
         "psr-4": {
@@ -25,5 +27,14 @@
         "branch-alias": {
             "dev-main": "0.1-dev"
         }
-    }
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://git.ole-hartwig.eu/api/v4/group/1091/-/packages/composer/packages.json",
+            "only": [
+                "koh/*"
+            ]
+        }
+    ]
 }

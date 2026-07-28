@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Koh\SyliusUcp\Service;
 
 use Doctrine\Persistence\ObjectManager;
+use Sylius\Component\Core\Model\OrderInterface;
 use Sylius\Component\Order\Context\CartContextInterface;
 use Sylius\Component\Core\TokenAssigner\OrderTokenAssignerInterface;
 
@@ -34,6 +35,18 @@ final class CheckoutSessionCreator
     {
         $cart = $this->cartContext->getCart();
 
+        // The cart context is typed against the base order model, but the token
+        // assigner and everything downstream need the Core one. In a stock
+        // Sylius shop it always is; a project that swapped the order class for
+        // something outside the Core hierarchy should find out here rather than
+        // through a type error deep inside Sylius.
+        if (!$cart instanceof OrderInterface) {
+            throw new \LogicException(\sprintf(
+                'UCP checkout sessions need a Sylius Core order, got %s.',
+                $cart::class,
+            ));
+        }
+
         $this->orderTokenAssigner->assignTokenValueIfNotSet($cart);
         $this->orderManager->persist($cart);
         $this->orderManager->flush();
@@ -41,7 +54,7 @@ final class CheckoutSessionCreator
         return [
             'id' => (string) $cart->getTokenValue(),
             'status' => 'open',
-            'currency' => method_exists($cart, 'getCurrencyCode') ? $cart->getCurrencyCode() : null,
+            'currency' => $cart->getCurrencyCode(),
             'total' => (int) $cart->getTotal(),
         ];
     }
