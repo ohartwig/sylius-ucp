@@ -31,13 +31,32 @@ final class CheckoutSessionController
     ) {
     }
 
+    /** Upper bound on what one catalog call may serialise. */
+    private const MAX_RESULTS = 200;
+
     #[Route('/ucp/v1/catalog', name: 'koh_ucp_catalog', methods: ['GET'])]
     public function catalog(Request $request): JsonResponse
     {
         $locale = (string) $request->query->get('localeCode', 'en_US');
+        $query = trim((string) $request->query->get('q', ''));
+
+        // findByName() is a LIKE with no limit, and this route needs no
+        // credentials. An empty q makes it `LIKE '%%'` — every product in the
+        // shop, hydrated and serialised, for anyone who asks as often as they
+        // like. A catalog search without a search term is not a search.
+        if ('' === $query) {
+            return new JsonResponse(
+                $this->envelope(['error' => 'q is required', 'products' => []], $request),
+                JsonResponse::HTTP_BAD_REQUEST,
+            );
+        }
+
         $products = array_map(
             static fn ($p): array => ['code' => (string) $p->getCode(), 'name' => (string) $p->getName(), 'slug' => $p->getSlug()],
-            $this->productRepository->findByName((string) $request->query->get('q', ''), $locale),
+            // Bounds the response. The repository has no limit of its own, so a
+            // very broad term still costs the query — narrowing that needs a
+            // repository-level limit this interface does not offer.
+            \array_slice($this->productRepository->findByName($query, $locale), 0, self::MAX_RESULTS),
         );
 
         return new JsonResponse($this->envelope(['products' => $products], $request));
