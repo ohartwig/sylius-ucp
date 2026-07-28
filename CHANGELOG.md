@@ -1,3 +1,15 @@
+## [1.1.1](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.0...v1.1.1) (2026-07-28)
+
+### :bug: Fixes
+
+* bound the public catalog route ([95f139f](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/95f139fb6b0879454e7ce3ccd29a99153dd13728))
+* drop Moselwal from the copyright line and correct the CI licence header ([2e589ee](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/2e589ee5fac252687829dd8f4f4f2a6dbb9d9e75))
+
+### :repeat: Chores
+
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.26.0 ([e31cfa6](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/e31cfa69d1694257c96ee34142554b7f4f0a3a6c))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.26.3 ([b15809f](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/b15809f6976a372a267de25145a69f48a75a1c7d))
+
 ## [1.1.0](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.0.2...v1.1.0) (2026-07-28)
 
 ### :sparkles: Features
