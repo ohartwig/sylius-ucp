@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Kai Ole Hartwig
+SPDX-License-Identifier: MIT
+-->
+
 # sylius-ucp
 
 > UCP-Adapter (Universal Commerce Protocol, Google/Shopify) fuer Sylius

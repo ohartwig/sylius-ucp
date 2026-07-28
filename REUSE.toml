@@ -1,0 +1,24 @@
+version = 1
+SPDX-PackageName = "koh/sylius-ucp"
+SPDX-PackageSupplier = "Kai Ole Hartwig <mail@ole-hartwig.eu>"
+SPDX-PackageDownloadLocation = "https://github.com/ole-hartwig/sylius-ucp"
+
+# Config, metadata and repo-template files. They carry no comment syntax that
+# survives their own tooling (composer.json, JSON-like configs) or are copied
+# verbatim from devops/repo-templates, where a per-file header would drift from
+# the source on the next sync. Declaring them here keeps `reuse lint` blocking
+# without littering generated files with headers.
+[[annotations]]
+path = [
+    ".gitignore",
+    ".gitlab-ci.yml",
+    ".phpunit.cache/**",
+    "CHANGELOG.md",
+    "CLAUDE.md",
+    "composer.json",
+    "phpstan.neon",
+    "phpunit.xml.dist",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Kai Ole Hartwig"
+SPDX-License-Identifier = "MIT"

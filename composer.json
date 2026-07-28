@@ -3,6 +3,16 @@
     "description": "Universal Commerce Protocol (UCP) adapter for Sylius (Google/Shopify agentic-commerce standard).",
     "type": "sylius-bundle",
     "license": "MIT",
+    "authors": [
+        {
+            "name": "Kai Ole Hartwig",
+            "email": "mail@ole-hartwig.eu"
+        }
+    ],
+    "support": {
+        "issues": "https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/-/issues",
+        "source": "https://github.com/ole-hartwig/sylius-ucp"
+    },
     "require": {
         "php": ">=8.2",
         "koh/sylius-agent-contracts": "^1.1",
