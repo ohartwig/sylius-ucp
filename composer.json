@@ -18,7 +18,13 @@
         "koh/sylius-agent-contracts": "^1.1",
         "sylius/sylius": "^2.0"
     },
+    "config": {
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        }
+    },
     "require-dev": {
+        "moselwal/dev-sylius": "^1.0",
         "phpstan/phpstan": "*",
         "phpunit/phpunit": "*",
         "phpstan/extension-installer": "*"
@@ -39,6 +45,13 @@
         }
     },
     "repositories": [
+        {
+            "type": "composer",
+            "url": "https://git.ole-hartwig.eu/api/v4/group/175/-/packages/composer/packages.json",
+            "only": [
+                "moselwal/*"
+            ]
+        },
         {
             "type": "composer",
             "url": "https://git.ole-hartwig.eu/api/v4/group/1091/-/packages/composer/packages.json",
