@@ -58,7 +58,7 @@ final class CheckoutSessionCreator
             'id' => (string) $cart->getTokenValue(),
             'status' => 'open',
             'currency' => $cart->getCurrencyCode(),
-            'total' => (int) $cart->getTotal(),
+            'total' => $cart->getTotal(),
         ];
     }
 }

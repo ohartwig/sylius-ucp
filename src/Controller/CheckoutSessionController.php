@@ -37,8 +37,8 @@ final class CheckoutSessionController
     #[Route('/ucp/v1/catalog', name: 'koh_ucp_catalog', methods: ['GET'])]
     public function catalog(Request $request): JsonResponse
     {
-        $locale = (string) $request->query->get('localeCode', 'en_US');
-        $query = trim((string) $request->query->get('q', ''));
+        $locale = $request->query->get('localeCode', 'en_US');
+        $query = trim($request->query->get('q', ''));
 
         // findByName() is a LIKE with no limit, and this route needs no
         // credentials. An empty q makes it `LIKE '%%'` — every product in the

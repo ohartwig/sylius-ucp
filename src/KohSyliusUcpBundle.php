@@ -13,7 +13,7 @@ use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 
 final class KohSyliusUcpBundle extends AbstractBundle
 {
-    /** @param array<string, mixed> $config */
+    /** @param array<mixed> $config */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
         // Default UCP settings. Set here (not in config/packages/*.yaml, which
