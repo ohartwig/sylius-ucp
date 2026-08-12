@@ -1,3 +1,13 @@
+## [1.1.5](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.4...v1.1.5) (2026-08-12)
+
+### :bug: Fixes
+
+* **deps:** update dependency php to >=8.5.9 ([e387945](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/e38794562ca26954e3f451d74225ad4fc2b32eda))
+
+### :repeat: Chores
+
+* **deps:** update phpstan packages ([49b144d](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/49b144db53cae38cdb015bbfaa890150ac41fdb2))
+
 ## [1.1.4](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.3...v1.1.4) (2026-08-12)
 
 ### :bug: Fixes
