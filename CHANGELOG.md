@@ -1,3 +1,34 @@
+## [1.1.4](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.3...v1.1.4) (2026-08-12)
+
+### :bug: Fixes
+
+* **deps:** declare Doctrine persistence and the Symfony components in use ([86eb184](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/86eb184f1f643c462a2fa1281e5508febda45a8e))
+* **deps:** update dependency sylius/sylius to ^2.0.18 [security] ([7e3db22](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/7e3db22d933ca1823bc5931bd5bcf6425bd5178f))
+
+### :repeat: Continuous Integrations
+
+* follow the composed pipeline on [@1](https://git.ole-hartwig.eu/1) instead of an exact pin ([5a5fe3d](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/5a5fe3d9c673c91f93848003e8fba5a8212f2abc))
+
+### :repeat: Chores
+
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.32.5 ([8a5fae9](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/8a5fae9fa56074c340590ef31f0d8e5b373b5e30))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.32.6 ([dfd4f00](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/dfd4f00dae8e93d9f077c311c7f4331ca384b841))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.32.7 ([1cd4095](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/1cd4095d458bdc0932a12cc666f0bc5b02260bb4))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.33.0 ([7ebe205](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/7ebe2054d4f1f5c4f33d275ce7756baa43596fc1))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.34.0 ([ca567c2](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/ca567c2ed86085cd817f4f2b79cb7107fde6e7fc))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.34.1 ([2104e69](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/2104e696c889475680d8f41bac5f1dc8dc83c452))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.34.2 ([d9b4ed3](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/d9b4ed3ea4da83f900c2219fc8283556d7290107))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.35.0 ([db3925d](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/db3925d9e036da6aaa4417be04b253e11eb3f219))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.35.1 ([ad53044](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/ad53044d8fa256de2dae56dd29d9ad5c3975e7b9))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.35.2 ([744a52b](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/744a52bbb16a162ddb08e6ea471a1460a59c8908))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.36.0 ([a6c1c0e](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/a6c1c0e4677b39f0361b2a7204bac7f989d37ee6))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.36.10 ([119c519](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/119c519d198d79382146df18eed698acd895c0fd))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.36.4 ([f98245d](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/f98245d2ed6e720fec80c989428f3c12161068a8))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.36.5 ([b0e2de2](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/b0e2de2606e7eb872f26f04d496da336c05d4d4c))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.36.6 ([20e8dfe](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/20e8dfe2f342e857fe6992bcd5385c30c3ce6ee9))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v1.36.8 ([6b22097](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/6b220972a5e7b676d49de50cf494755babed6b6c))
+* **deps:** update dependency phpunit/phpunit to v8 [security] ([710e381](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/710e381b25e44648b36fc499dae6358443ef653e))
+
 ## [1.1.3](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.2...v1.1.3) (2026-08-01)
 
 ### :bug: Fixes
