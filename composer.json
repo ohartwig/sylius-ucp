@@ -14,7 +14,7 @@
         "source": "https://github.com/ole-hartwig/sylius-ucp"
     },
     "require": {
-        "php": ">=8.2",
+        "php": ">=8.5.9",
         "koh/sylius-agent-contracts": "^1.1",
         "doctrine/persistence": "^3.3 || ^4.0",
         "sylius/sylius": "^2.0.18",
