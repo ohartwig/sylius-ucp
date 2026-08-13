@@ -1,3 +1,13 @@
+## [1.1.6](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.5...v1.1.6) (2026-08-13)
+
+### :bug: Fixes
+
+* **deps:** update dependency sylius/sylius to ^2.2.8 ([419067e](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/419067e339f5eec0b05e5bd7bf8d75688830b2a7))
+
+### :repeat: Chores
+
+* **deps:** update dependency phpunit/phpunit to v8.5.54 ([6235c8e](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/6235c8efac10ec9dd637ee5da742f91d0dc022c7))
+
 ## [1.1.5](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.4...v1.1.5) (2026-08-12)
 
 ### :bug: Fixes
