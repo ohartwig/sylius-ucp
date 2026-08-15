@@ -1,3 +1,9 @@
+## [1.1.8](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.7...v1.1.8) (2026-08-15)
+
+### :repeat: Chores
+
+* **ci:** enrol the Renovate bot's signing key ([cba4e51](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/cba4e5161da9f15e50d596c4483d1c7933db91fd))
+
 ## [1.1.7](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.6...v1.1.7) (2026-08-14)
 
 ### :bug: Fixes
