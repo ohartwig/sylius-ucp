@@ -1,3 +1,13 @@
+## [1.1.9](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.8...v1.1.9) (2026-08-16)
+
+### :bug: Fixes
+
+* **deps:** drop the exact pins that made composer unresolvable ([77408b8](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/77408b8478427be047f5797780308b6724f4a6b2)), closes [no-issue#0](https://git.ole-hartwig.eu/ai-ready-platform/no-issue/issues/0)
+
+### :white_check_mark: Tests
+
+* use stubs where nothing is verified ([51b3695](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/51b3695778bed92934e4b49376fe1a21173d0ef7)), closes [no-issue#0](https://git.ole-hartwig.eu/ai-ready-platform/no-issue/issues/0)
+
 ## [1.1.8](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.7...v1.1.8) (2026-08-15)
 
 ### :repeat: Chores
