@@ -100,10 +100,10 @@ final class UcpProfileControllerTest extends TestCase
 
     private function controller(): UcpProfileController
     {
-        $channel = $this->createMock(ChannelInterface::class);
+        $channel = self::createStub(ChannelInterface::class);
         $channel->method('getCode')->willReturn('WEB_DE');
 
-        $factory = $this->createMock(AgentContextFactoryInterface::class);
+        $factory = self::createStub(AgentContextFactoryInterface::class);
         $factory->method('create')->willReturn(
             new AgentContext($channel, 'https://shop.example.com', 'de_DE', ['de_DE']),
         );

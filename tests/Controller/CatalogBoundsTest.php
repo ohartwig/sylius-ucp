@@ -46,7 +46,7 @@ final class CatalogBoundsTest extends TestCase
 
     public function testABroadTermCannotSerialiseTheWholeCatalogue(): void
     {
-        $repository = $this->createMock(ProductRepositoryInterface::class);
+        $repository = self::createStub(ProductRepositoryInterface::class);
         $repository->method('findByName')->willReturn($this->products(1000));
 
         $response = $this->controller($repository)->catalog(
@@ -67,7 +67,7 @@ final class CatalogBoundsTest extends TestCase
         for ($i = 0; $i < $count; ++$i) {
             // A real Product would need a translation locale for getName();
             // this test is about how many of them survive, not about their text.
-            $product = $this->createMock(ProductInterface::class);
+            $product = self::createStub(ProductInterface::class);
             $product->method('getCode')->willReturn('SKU-'.$i);
             $product->method('getName')->willReturn('Product '.$i);
             $product->method('getSlug')->willReturn('product-'.$i);
@@ -85,9 +85,9 @@ final class CatalogBoundsTest extends TestCase
         return new CheckoutSessionController(
             $repository,
             new CheckoutSessionCreator(
-                $this->createMock(CartContextInterface::class),
-                $this->createMock(OrderTokenAssignerInterface::class),
-                $this->createMock(ObjectManager::class),
+                self::createStub(CartContextInterface::class),
+                self::createStub(OrderTokenAssignerInterface::class),
+                self::createStub(ObjectManager::class),
             ),
         );
     }

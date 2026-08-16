@@ -19,12 +19,12 @@ final class CheckoutSessionCreatorTest extends TestCase
 {
     public function testItCreatesAnOpenSessionFromTheCart(): void
     {
-        $cart = $this->createMock(OrderInterface::class);
+        $cart = self::createStub(OrderInterface::class);
         $cart->method('getTokenValue')->willReturn('TKN123');
         $cart->method('getCurrencyCode')->willReturn('EUR');
         $cart->method('getTotal')->willReturn(0);
 
-        $cartContext = $this->createMock(CartContextInterface::class);
+        $cartContext = self::createStub(CartContextInterface::class);
         $cartContext->method('getCart')->willReturn($cart);
 
         $assigner = $this->createMock(OrderTokenAssignerInterface::class);
@@ -46,13 +46,13 @@ final class CheckoutSessionCreatorTest extends TestCase
      */
     public function testNonCoreOrderFailsWithAClearMessage(): void
     {
-        $cartContext = $this->createMock(CartContextInterface::class);
-        $cartContext->method('getCart')->willReturn($this->createMock(BaseOrderInterface::class));
+        $cartContext = self::createStub(CartContextInterface::class);
+        $cartContext->method('getCart')->willReturn(self::createStub(BaseOrderInterface::class));
 
         $creator = new CheckoutSessionCreator(
             $cartContext,
-            $this->createMock(OrderTokenAssignerInterface::class),
-            $this->createMock(ObjectManager::class),
+            self::createStub(OrderTokenAssignerInterface::class),
+            self::createStub(ObjectManager::class),
         );
 
         $this->expectException(\LogicException::class);
