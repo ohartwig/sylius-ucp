@@ -1,3 +1,9 @@
+## [1.1.12](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.11...v1.1.12) (2026-09-03)
+
+### :bug: Fixes
+
+* **deps:** update dependency sylius/sylius to ^2.2.9 ([b4826f6](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/b4826f6738d818015d95245b9cf0da5b15f4e725))
+
 ## [1.1.11](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.10...v1.1.11) (2026-09-02)
 
 ### :bug: Fixes
