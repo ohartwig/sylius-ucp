@@ -17,7 +17,7 @@
         "php": ">=8.5.10",
         "koh/sylius-agent-contracts": "^1.1",
         "doctrine/persistence": "^3.3 || ^4.0",
-        "sylius/sylius": "^2.2.8",
+        "sylius/sylius": "^2.2.9",
         "symfony/dependency-injection": "^6.4 || ^7.4",
         "symfony/http-foundation": "^6.4 || ^7.4",
         "symfony/http-kernel": "^6.4 || ^7.4",
