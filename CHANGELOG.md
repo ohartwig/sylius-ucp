@@ -1,3 +1,17 @@
+## [1.1.13](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.12...v1.1.13) (2026-09-26)
+
+### :bug: Fixes
+
+* **deps:** update dependency php to >=8.5.11 ([1902aa2](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/1902aa22c36c97cd23e4edb920e4471fda727f51))
+
+### :repeat: Continuous Integrations
+
+* release with yasrt ([97b04ac](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/97b04acf30c986eed7ef5c7fabf675ed586cd2a9))
+
+### :repeat: Chores
+
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v2 ([c281d6a](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/c281d6a1daef821d5d3dd0984f411304be8c1619))
+
 ## [1.1.12](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.11...v1.1.12) (2026-09-03)
 
 ### :bug: Fixes
