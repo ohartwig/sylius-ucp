@@ -17,6 +17,7 @@ path = [
     "composer.json",
     "phpstan.neon",
     "phpunit.xml.dist",
+    "SECURITY.md",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Kai Ole Hartwig"
