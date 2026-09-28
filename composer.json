@@ -30,7 +30,7 @@
         }
     },
     "require-dev": {
-        "moselwal/dev-sylius": "^1.0"
+        "koh/dev-sylius": "^1.0"
     },
     "autoload": {
         "psr-4": {
@@ -48,13 +48,6 @@
         }
     },
     "repositories": [
-        {
-            "type": "composer",
-            "url": "https://git.ole-hartwig.eu/api/v4/group/175/-/packages/composer/packages.json",
-            "only": [
-                "moselwal/*"
-            ]
-        },
         {
             "type": "composer",
             "url": "https://git.ole-hartwig.eu/api/v4/group/1091/-/packages/composer/packages.json",
