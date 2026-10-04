@@ -15,6 +15,7 @@ path = [
     "CHANGELOG.md",
     "CLAUDE.md",
     "composer.json",
+    "renovate.json",
     "phpstan.neon",
     "phpunit.xml.dist",
     "SECURITY.md",
