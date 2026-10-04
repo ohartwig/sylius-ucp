@@ -1,3 +1,14 @@
+## [1.1.17](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.16...v1.1.17) (2026-10-04)
+
+### :bug: Fixes
+
+* **deps:** accept Sylius 2.2.9 again ([8407592](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/8407592b2b8e0114e65e7d58c9751df851e4cef0))
+
+### :repeat: Continuous Integrations
+
+* follow composed-default-pipelines on the rolling major tag ([220d1c4](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/220d1c44c961accd69c6ca8b48e35c646888997f))
+* **deps:** update dependency devops/ci-cd-components/composed-default-pipelines to v2.21.17 ([54e16d3](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/54e16d3397aa3a4083470e14c01ca08c0e2321c7))
+
 ## [1.1.16](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.15...v1.1.16) (2026-09-30)
 
 ### :bug: Fixes
