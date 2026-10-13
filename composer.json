@@ -10,8 +10,9 @@
         }
     ],
     "support": {
-        "issues": "https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/-/issues",
-        "source": "https://github.com/ole-hartwig/sylius-ucp"
+        "issues": "https://github.com/ohartwig/sylius-ucp/issues",
+        "source": "https://github.com/ohartwig/sylius-ucp",
+        "security": "https://github.com/ohartwig/sylius-ucp/blob/main/SECURITY.md"
     },
     "require": {
         "php": ">=8.5.11",
