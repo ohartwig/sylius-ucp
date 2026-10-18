@@ -59,7 +59,7 @@ final class UcpProfileControllerTest extends TestCase
         $profile = $this->profile();
 
         self::assertSame('https://shop.example.com/ucp/v1/catalog', $profile['endpoints']['catalog']);
-        self::assertSame('https://shop.example.com/ucp/v1/checkout_sessions', $profile['endpoints']['checkout']);
+        self::assertSame('https://shop.example.com/ucp/v1/checkout-sessions', $profile['endpoints']['checkout']);
         self::assertSame(
             'https://shop.example.com/ucp/v1',
             $profile['ucp']['services']['dev.ucp.shopping'][0]['endpoint'],
