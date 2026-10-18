@@ -89,7 +89,7 @@ final class UcpProfileController
             'capabilities' => $capabilities,
             'endpoints' => [
                 'catalog' => $endpoint.'/catalog',
-                'checkout' => $endpoint.'/checkout_sessions',
+                'checkout' => $endpoint.'/checkout-sessions',
             ],
         ], maxAge: 300, request: $request);
     }
