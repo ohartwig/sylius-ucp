@@ -26,7 +26,7 @@ signing is not offered yet (`signing_keys` is empty).
 
 ## Install
 
-Requires PHP 8.5 and Sylius 2.2 or 2.3.
+Requires PHP 8.3 or later and Sylius 2.2 or 2.3.
 
 ```bash
 composer require koh/sylius-ucp
