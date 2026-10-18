@@ -1,3 +1,11 @@
+## [1.1.22](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.21...v1.1.22) (2026-10-18)
+
+### :bug: Fixes
+
+* admit PHP 8.3 and test the floor on it ([06caa64](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/06caa649ec5f984d013f94ac9bf4332394ce4aed))
+* **docs:** document installation and endpoints in the README ([0a8c776](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/0a8c776da27f8bf2b16906aa115d53ae42af92ec))
+* **docs:** write the README in English throughout ([69615ee](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/69615ee8afd11c71984ad752064e983f9568d096))
+
 ## [1.1.21](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.20...v1.1.21) (2026-10-16)
 
 ### :repeat: Chores
