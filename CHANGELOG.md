@@ -1,3 +1,9 @@
+## [1.1.23](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.22...v1.1.23) (2026-10-18)
+
+### :bug: Fixes
+
+* **profile:** advertise the routes the bundle serves ([7b7109f](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/7b7109f140d6fb50ee901a15f77c867db750e67c))
+
 ## [1.1.22](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.21...v1.1.22) (2026-10-18)
 
 ### :bug: Fixes
