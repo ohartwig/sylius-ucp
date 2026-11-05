@@ -9,6 +9,7 @@ namespace Koh\SyliusUcp\Tests;
 
 use Doctrine\ORM\EntityRepository;
 use Doctrine\Persistence\ObjectManager;
+use Koh\SyliusAgentContracts\Cart\CartHandoff;
 use Koh\SyliusAgentContracts\Context\AgentContextFactoryInterface;
 use Koh\SyliusAgentContracts\Http\AgentJsonResponder;
 use Koh\SyliusUcp\Catalog\AgeRestriction;
@@ -99,6 +100,14 @@ final class KohSyliusUcpBundleTest extends TestCase
             'router' => $this->createStub(UrlGeneratorInterface::class),
             AgentContextFactoryInterface::class => $this->createStub(AgentContextFactoryInterface::class),
             AgentJsonResponder::class => new AgentJsonResponder(),
+            CartHandoff::class => new CartHandoff(
+                $this->createStub(CartContextInterface::class),
+                $this->createStub(FactoryInterface::class),
+                $this->createStub(OrderItemQuantityModifierInterface::class),
+                $this->createStub(AddToCartCommandFactoryInterface::class),
+                new EventDispatcher(),
+                $this->createStub(ObjectManager::class),
+            ),
         ] as $id => $service) {
             $container->set($id, $service);
         }
@@ -131,6 +140,7 @@ final class KohSyliusUcpBundleTest extends TestCase
             'router' => UrlGeneratorInterface::class,
             AgentContextFactoryInterface::class => AgentContextFactoryInterface::class,
             AgentJsonResponder::class => AgentJsonResponder::class,
+            CartHandoff::class => CartHandoff::class,
         ] as $id => $class) {
             $container->register($id, $class)->setSynthetic(true);
         }

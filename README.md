@@ -159,6 +159,10 @@ rules) run as if the buyer had clicked. If a gate refuses, nothing is added and
 the buyer lands on the fallback route with a notice; the same link works once
 the gate is satisfied. The answer is always `303` with `Cache-Control:
 no-store` and `Referrer-Policy: no-referrer`; loading the link places no order.
+The handoff is `CartHandoff` from `koh/sylius-agent-contracts`, shared with
+ACP's `continue_url`: a gate signals a refusal with an exception implementing
+its `CartGateRefusalInterface` (any `RuntimeException` still counts unless
+`koh_agent.cart_handoff.runtime_exception_is_refusal` is off).
 
 - `continue_to` is validated as the spec says (one leading slash, no scheme,
   backslash, whitespace or control character, dot segments removed) and

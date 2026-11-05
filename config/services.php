@@ -90,12 +90,7 @@ return static function (ContainerConfigurator $container): void {
         ->args([
             service('Koh\\SyliusAgentContracts\\Context\\AgentContextFactoryInterface'),
             service(PurchasableItemResolver::class),
-            service('sylius.context.cart'),
-            service('sylius.factory.order_item'),
-            service('sylius.modifier.order_item_quantity'),
-            service('sylius.factory.add_to_cart_command'),
-            service('event_dispatcher'),
-            service('sylius.manager.order'),
+            service('Koh\\SyliusAgentContracts\\Cart\\CartHandoff'),
             service('router'),
             param('koh_sylius_ucp.permalink.enabled'),
             param('koh_sylius_ucp.permalink.cart_route'),
