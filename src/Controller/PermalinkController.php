@@ -7,28 +7,16 @@ declare(strict_types=1);
 
 namespace Koh\SyliusUcp\Controller;
 
-use Doctrine\Persistence\ObjectManager;
+use Koh\SyliusAgentContracts\Cart\CartHandoff;
+use Koh\SyliusAgentContracts\Cart\CartHandoffLine;
 use Koh\SyliusAgentContracts\Context\AgentContextFactoryInterface;
 use Koh\SyliusUcp\Permalink\PermalinkRequest;
 use Koh\SyliusUcp\Permalink\PurchasableItemResolver;
-use Sylius\Bundle\OrderBundle\Factory\AddToCartCommandFactoryInterface;
-use Sylius\Component\Core\Model\OrderInterface;
-use Sylius\Component\Core\Model\OrderItemInterface;
-use Sylius\Component\Core\Model\ProductVariantInterface;
-use Sylius\Component\Order\Context\CartContextInterface;
-use Sylius\Component\Order\Modifier\OrderItemQuantityModifierInterface;
-use Sylius\Component\Order\SyliusCartEvents;
-use Sylius\Resource\Factory\FactoryInterface;
-use Symfony\Component\EventDispatcher\GenericEvent;
-use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\Session\FlashBagAwareSessionInterface;
-use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
-use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
  * Capability `dev.ucp.shopping.permalink`: the handoff from an agent to the
@@ -50,6 +38,10 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
  * the same session does not add the items twice, and a HEAD request (link
  * previews) changes nothing. Every answer is a 303 with `Cache-Control:
  * no-store` and `Referrer-Policy: no-referrer`.
+ *
+ * The handoff itself is {@see CartHandoff}, shared with ACP's `continue_url`;
+ * this controller parses the link, resolves the items and picks notices and
+ * destinations.
  */
 final class PermalinkController
 {
@@ -59,18 +51,10 @@ final class PermalinkController
 
     public const SESSION_KEY = 'koh_ucp.permalinks';
 
-    /**
-     * @param FactoryInterface<OrderItemInterface> $orderItemFactory
-     */
     public function __construct(
         private readonly AgentContextFactoryInterface $contextFactory,
         private readonly PurchasableItemResolver $resolver,
-        private readonly CartContextInterface $cartContext,
-        private readonly FactoryInterface $orderItemFactory,
-        private readonly OrderItemQuantityModifierInterface $quantityModifier,
-        private readonly AddToCartCommandFactoryInterface $addToCartCommandFactory,
-        private readonly EventDispatcherInterface $eventDispatcher,
-        private readonly ObjectManager $orderManager,
+        private readonly CartHandoff $handoff,
         private readonly UrlGeneratorInterface $urlGenerator,
         private readonly bool $enabled = true,
         private readonly string $cartRoute = 'sylius_shop_cart_summary',
@@ -104,13 +88,11 @@ final class PermalinkController
         }
 
         $session = $request->getSession();
-        $done = $session->get(self::SESSION_KEY, []);
-        $done = \is_array($done) ? $done : [];
-        if (\in_array($permalink->fingerprint(), $done, true)) {
+        if ($this->handoff->wasHandedOver($session, self::SESSION_KEY, $permalink->fingerprint())) {
             return $this->redirect($destination ?? $this->route($this->cartRoute, $locale), $request, null, $permalink->passThrough);
         }
 
-        $variants = [];
+        $lines = [];
         $unavailable = false;
         foreach ($permalink->items as [$identifier, $quantity]) {
             $variant = $this->resolver->resolve($identifier, $context->channel);
@@ -118,60 +100,23 @@ final class PermalinkController
                 $unavailable = true;
                 continue;
             }
-            $variants[] = [$variant, $quantity];
+            $lines[] = new CartHandoffLine($variant, $quantity);
         }
 
-        if ([] === $variants) {
+        if ([] === $lines) {
             return $this->redirect($destination ?? $this->route($this->fallbackRoute, $locale), $request, 'unavailable', $permalink->passThrough);
         }
 
-        $cart = $this->cartContext->getCart();
-        if (!$cart instanceof OrderInterface) {
-            throw new \LogicException(\sprintf('The UCP permalink needs a Sylius Core order, got %s.', $cart::class));
-        }
-
-        if (!$this->addAll($cart, $variants)) {
+        $result = $this->handoff->handOver($lines);
+        if ($result->isRefused()) {
             return $this->redirect($destination ?? $this->route($this->fallbackRoute, $locale), $request, 'blocked', $permalink->passThrough);
         }
 
-        $this->orderManager->persist($cart);
-        $this->orderManager->flush();
-
-        $done[] = $permalink->fingerprint();
-        $session->set(self::SESSION_KEY, \array_slice($done, -20));
+        $this->handoff->remember($session, self::SESSION_KEY, $permalink->fingerprint());
 
         $notice = $unavailable ? 'partial' : ($permalink->capped ? 'capped' : 'added');
 
-        return $this->redirect($destination ?? $this->route($this->cartRoute, $cart->getLocaleCode() ?? $locale), $request, $notice, $permalink->passThrough);
-    }
-
-    /**
-     * @param list<array{ProductVariantInterface, int}> $variants
-     */
-    private function addAll(OrderInterface $cart, array $variants): bool
-    {
-        try {
-            foreach ($variants as [$variant, $quantity]) {
-                $item = $this->orderItemFactory->createNew();
-                $item->setVariant($variant);
-                $this->quantityModifier->modify($item, $quantity);
-
-                $this->eventDispatcher->dispatch(
-                    new GenericEvent($this->addToCartCommandFactory->createWithCartAndCartItem($cart, $item)),
-                    SyliusCartEvents::CART_ITEM_ADD,
-                );
-            }
-        } catch (\RuntimeException) {
-            // A gate said no. Undo what earlier items changed in memory, so a
-            // later flush elsewhere cannot persist half a handoff.
-            if (null !== $cart->getId()) {
-                $this->orderManager->refresh($cart);
-            }
-
-            return false;
-        }
-
-        return true;
+        return $this->redirect($destination ?? $this->route($this->cartRoute, $result->cart?->getLocaleCode() ?? $locale), $request, $notice, $permalink->passThrough);
     }
 
     private function route(string $route, string $locale): string
@@ -185,7 +130,7 @@ final class PermalinkController
     private function redirect(string $location, Request $request, ?string $notice, array $passThrough): Response
     {
         if (null !== $notice && $request->hasSession()) {
-            $this->flash($request->getSession(), 'added' === $notice ? 'success' : 'info', 'koh_ucp.permalink.'.$notice);
+            $this->handoff->flash($request->getSession(), 'added' === $notice ? 'success' : 'info', 'koh_ucp.permalink.'.$notice);
         }
 
         if ([] !== $passThrough) {
@@ -196,17 +141,6 @@ final class PermalinkController
             $location .= (str_contains($location, '?') ? '&' : '?').$query;
         }
 
-        $response = new RedirectResponse($location, Response::HTTP_SEE_OTHER);
-        $response->headers->set('Cache-Control', 'no-store');
-        $response->headers->set('Referrer-Policy', 'no-referrer');
-
-        return $response;
-    }
-
-    private function flash(SessionInterface $session, string $type, string $message): void
-    {
-        if ($session instanceof FlashBagAwareSessionInterface) {
-            $session->getFlashBag()->add($type, $message);
-        }
+        return $this->handoff->redirect($location, Response::HTTP_SEE_OTHER);
     }
 }

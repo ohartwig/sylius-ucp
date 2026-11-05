@@ -9,6 +9,7 @@ namespace Koh\SyliusUcp\Tests\Controller;
 
 use Doctrine\Persistence\ObjectManager;
 use Doctrine\Persistence\ObjectRepository;
+use Koh\SyliusAgentContracts\Cart\CartHandoff;
 use Koh\SyliusAgentContracts\Context\AgentContextFactoryInterface;
 use Koh\SyliusUcp\Controller\PermalinkController;
 use Koh\SyliusUcp\Permalink\PurchasableItemResolver;
@@ -310,12 +311,7 @@ final class PermalinkControllerTest extends TestCase
         return new PermalinkController(
             $factory,
             new PurchasableItemResolver($variants, $productRepository),
-            $cartContext,
-            $itemFactory,
-            $quantity,
-            new AddToCartCommandFactory(),
-            $dispatcher,
-            $manager,
+            new CartHandoff($cartContext, $itemFactory, $quantity, new AddToCartCommandFactory(), $dispatcher, $manager),
             $router,
             $enabled,
         );
