@@ -15,6 +15,10 @@ use Sylius\Component\Core\Model\ProductInterface;
 use Sylius\Component\Core\Repository\ProductRepositoryInterface;
 use Sylius\Component\Core\TokenAssigner\OrderTokenAssignerInterface;
 use Sylius\Component\Order\Context\CartContextInterface;
+use Sylius\Component\Order\Modifier\OrderItemQuantityModifierInterface;
+use Sylius\Component\Order\Modifier\OrderModifierInterface;
+use Sylius\Component\Product\Repository\ProductVariantRepositoryInterface;
+use Sylius\Resource\Factory\FactoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -88,6 +92,10 @@ final class CatalogBoundsTest extends TestCase
                 self::createStub(CartContextInterface::class),
                 self::createStub(OrderTokenAssignerInterface::class),
                 self::createStub(ObjectManager::class),
+                self::createStub(ProductVariantRepositoryInterface::class),
+                self::createStub(FactoryInterface::class),
+                self::createStub(OrderItemQuantityModifierInterface::class),
+                self::createStub(OrderModifierInterface::class),
             ),
         );
     }

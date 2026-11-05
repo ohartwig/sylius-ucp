@@ -56,7 +56,7 @@ final class UcpProfileControllerTest extends TestCase
     /** Clients call these from elsewhere, so relative paths would be useless. */
     public function testEndpointsAreAbsoluteAndChannelScoped(): void
     {
-        $profile = $this->profile();
+        $profile = $this->profile(checkout: true);
 
         self::assertSame('https://shop.example.com/ucp/v1/catalog', $profile['endpoints']['catalog']);
         self::assertSame('https://shop.example.com/ucp/v1/checkout-sessions', $profile['endpoints']['checkout']);
@@ -64,6 +64,23 @@ final class UcpProfileControllerTest extends TestCase
             'https://shop.example.com/ucp/v1',
             $profile['ucp']['services']['dev.ucp.shopping'][0]['endpoint'],
         );
+    }
+
+    /** AUD-034-F01: with `koh_sylius_ucp.checkout` off nothing advertises the session route. */
+    public function testCheckoutIsNotAdvertisedWhenTheSwitchIsOff(): void
+    {
+        $profile = $this->profile();
+
+        self::assertSame(['dev.ucp.shopping.catalog'], array_keys($profile['ucp']['capabilities']));
+        self::assertSame(['catalog'], array_keys($profile['endpoints']));
+    }
+
+    public function testCheckoutIsAdvertisedWhenTheSwitchIsOn(): void
+    {
+        $profile = $this->profile(checkout: true);
+
+        self::assertArrayHasKey('dev.ucp.shopping.checkout', $profile['ucp']['capabilities']);
+        self::assertArrayHasKey('checkout', $profile['endpoints']);
     }
 
     /**
@@ -85,11 +102,11 @@ final class UcpProfileControllerTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function profile(): array
+    private function profile(bool $checkout = false): array
     {
         /** @var array<string, mixed> $decoded */
         $decoded = json_decode(
-            (string) ($this->controller())(new Request())->getContent(),
+            (string) ($this->controller($checkout))(new Request())->getContent(),
             true,
             512,
             \JSON_THROW_ON_ERROR,
@@ -98,7 +115,7 @@ final class UcpProfileControllerTest extends TestCase
         return $decoded;
     }
 
-    private function controller(): UcpProfileController
+    private function controller(bool $checkout = false): UcpProfileController
     {
         $channel = self::createStub(ChannelInterface::class);
         $channel->method('getCode')->willReturn('WEB_DE');
@@ -108,6 +125,6 @@ final class UcpProfileControllerTest extends TestCase
             new AgentContext($channel, 'https://shop.example.com', 'de_DE', ['de_DE']),
         );
 
-        return new UcpProfileController($factory, new AgentJsonResponder());
+        return new UcpProfileController($factory, new AgentJsonResponder(), checkoutEnabled: $checkout);
     }
 }

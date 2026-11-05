@@ -27,9 +27,17 @@ final class AdvertisedPathsTest extends TestCase
 {
     private const ORIGIN = 'https://shop.example.com';
 
-    public function testEveryProfileUrlIsARoute(): void
+    /** @return iterable<string, array{bool}> */
+    public static function checkoutSwitch(): iterable
     {
-        $profile = $this->decode((new UcpProfileController($this->factory(), new AgentJsonResponder()))(new Request()));
+        yield 'checkout off' => [false];
+        yield 'checkout on' => [true];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('checkoutSwitch')]
+    public function testEveryProfileUrlIsARoute(bool $checkout): void
+    {
+        $profile = $this->decode((new UcpProfileController($this->factory(), new AgentJsonResponder(), checkoutEnabled: $checkout))(new Request()));
 
         $urls = array_values($profile['endpoints']);
         $urls[] = $profile['ucp']['services']['dev.ucp.shopping'][0]['schema'];
@@ -42,15 +50,17 @@ final class AdvertisedPathsTest extends TestCase
         }
     }
 
-    public function testEveryOpenApiPathIsARoute(): void
+    #[\PHPUnit\Framework\Attributes\DataProvider('checkoutSwitch')]
+    public function testEveryOpenApiPathIsARoute(bool $checkout): void
     {
-        $doc = $this->decode((new OpenApiController($this->factory(), new AgentJsonResponder()))(new Request()));
+        $doc = $this->decode((new OpenApiController($this->factory(), new AgentJsonResponder(), checkoutEnabled: $checkout))(new Request()));
 
         self::assertSame('3.1.0', $doc['openapi']);
         $base = substr($doc['servers'][0]['url'], \strlen(self::ORIGIN));
         foreach (array_keys($doc['paths']) as $path) {
             self::assertContains($base.$path, $this->routePaths(), $path.' is documented but not routed');
         }
+        self::assertSame($checkout, isset($doc['paths']['/checkout-sessions']));
     }
 
     /** @return list<string> */

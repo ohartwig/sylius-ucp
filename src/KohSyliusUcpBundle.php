@@ -26,6 +26,20 @@ final class KohSyliusUcpBundle extends AbstractBundle
         if (!$builder->hasParameter('koh_sylius_ucp.endpoint_base')) {
             $builder->setParameter('koh_sylius_ucp.endpoint_base', '/ucp/v1');
         }
+        // The checkout-session route writes a cart for an anonymous caller, so
+        // it is opt-in (AUD-034-F01): off, the route answers 404 and neither the
+        // profile nor the OpenAPI document advertises it. Set it from the same
+        // decision as `koh_acp.checkout`.
+        if (!$builder->hasParameter('koh_sylius_ucp.checkout')) {
+            $builder->setParameter('koh_sylius_ucp.checkout', false);
+        }
+        // Sliding window per client address in front of the session creator.
+        if (!$builder->hasParameter('koh_sylius_ucp.checkout_limit')) {
+            $builder->setParameter('koh_sylius_ucp.checkout_limit', 10);
+        }
+        if (!$builder->hasParameter('koh_sylius_ucp.checkout_interval')) {
+            $builder->setParameter('koh_sylius_ucp.checkout_interval', '1 minute');
+        }
 
         $container->import(\dirname(__DIR__) . '/config/services.php');
     }
