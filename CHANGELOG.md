@@ -1,3 +1,9 @@
+## [1.1.25](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.24...v1.1.25) (2026-11-05)
+
+### :bug: Fixes
+
+* **profile:** validate against UCP 2026-08-25 and serve catalog search per spec ([78cb84a](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/78cb84aeb3807c790c21bd192b2fc925f6989364))
+
 ## [1.1.24](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.23...v1.1.24) (2026-11-05)
 
 ### :bug: Fixes
