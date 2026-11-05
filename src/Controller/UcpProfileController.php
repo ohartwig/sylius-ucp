@@ -14,19 +14,23 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * UCP discovery profile at /.well-known/ucp.
+ * UCP discovery profile at /.well-known/ucp (business profile, UCP 2026-08-25).
  *
- * The document is a superset, deliberately.
+ * Declares exactly what the shop implements per the specification:
+ * `dev.ucp.shopping.catalog.search` over REST. Nothing else is a capability.
+ * The checkout-session route this bundle can serve is not the UCP checkout
+ * capability (no update, complete or cancel), so it is never declared here,
+ * whatever `koh_sylius_ucp.checkout` says.
  *
- * The specification (ucp.dev) nests everything under a `ucp` object and pairs it
- * with `signing_keys`. Discovery scanners in the wild instead look for
- * `protocol_version`, `services`, `capabilities` and `endpoints` at the top
- * level. Both readings exist in real clients and neither is going away;
- * publishing only one means being invisible to half of them.
+ * `schema` URLs point at ucp.dev, not at this shop: a platform accepts an
+ * entity only when its schema host matches the namespace (`dev.ucp.*` must
+ * come from ucp.dev), and drops it otherwise.
  *
- * Extra members are ignored by any conforming parser, so serving both costs a
- * few hundred bytes. The nested `ucp` object is the authority — the top-level
- * keys are projections of it and must not be edited on their own.
+ * Next to the nested `ucp` object, the document repeats the same facts at the
+ * top level (`protocol_version`, `services`, `capabilities`, `endpoints`) for
+ * discovery scanners that read that shape. The profile schema allows extra
+ * members; the nested object is the authority and the flat keys are
+ * projections of it.
  *
  * Endpoint URLs are absolute and come from the channel, not the request: this
  * profile is consumed by clients that will call those URLs from elsewhere.
@@ -36,66 +40,52 @@ final class UcpProfileController
     public function __construct(
         private readonly AgentContextFactoryInterface $contextFactory,
         private readonly AgentJsonResponder $responder,
-        private readonly string $version = '2026-04-08',
+        private readonly string $version = '2026-08-25',
         private readonly string $endpointBase = '/ucp/v1',
-        private readonly bool $checkoutEnabled = false,
     ) {
     }
 
     #[Route('/.well-known/ucp', name: 'koh_ucp_profile', methods: ['GET', 'HEAD'])]
     public function __invoke(Request $request): Response
     {
-        $context = $this->contextFactory->create();
-        $endpoint = $context->url($this->endpointBase);
-        $schema = $endpoint.'/openapi.json';
+        $endpoint = $this->contextFactory->create()->url($this->endpointBase);
+        $ucpDev = 'https://ucp.dev/'.$this->version;
 
         $services = [
             'dev.ucp.shopping' => [[
                 'version' => $this->version,
-                'spec' => 'https://ucp.dev/'.$this->version.'/specification/overview',
+                'spec' => $ucpDev.'/specification/overview',
                 'transport' => 'rest',
                 'endpoint' => $endpoint,
-                'schema' => $schema,
+                'schema' => $ucpDev.'/services/shopping/rest.openapi.json',
             ]],
         ];
 
         $capabilities = [
-            'dev.ucp.shopping.catalog' => [[
+            CatalogSearchController::CAPABILITY => [[
                 'version' => $this->version,
-                'spec' => 'https://ucp.dev/'.$this->version.'/specification/catalog',
-                'schema' => $schema,
+                'spec' => $ucpDev.'/specification/shopping/catalog/search',
+                'schema' => $ucpDev.'/schemas/shopping/catalog_search.json',
             ]],
         ];
-        $endpoints = ['catalog' => $endpoint.'/catalog'];
-
-        // Checkout is advertised only when `koh_sylius_ucp.checkout` is on; with
-        // it off the session route answers 404 (AUD-034-F01).
-        if ($this->checkoutEnabled) {
-            $capabilities['dev.ucp.shopping.checkout'] = [[
-                'version' => $this->version,
-                'spec' => 'https://ucp.dev/'.$this->version.'/specification/checkout',
-                'schema' => $schema,
-            ]];
-            $endpoints['checkout'] = $endpoint.'/checkout-sessions';
-        }
 
         return $this->responder->respond([
-            // Specification shape.
+            // Specification shape. No `keys`: the shop signs nothing yet, and
+            // the member is optional — an entry would promise a verification
+            // this shop does not perform.
             'ucp' => [
                 'version' => $this->version,
                 'services' => $services,
                 'capabilities' => $capabilities,
+                // Required even when empty; an object, not a list.
+                'payment_handlers' => new \stdClass(),
             ],
-            // Required by the spec. Empty until request signing exists: omitting
-            // the key violates the schema, and populating it would promise a
-            // verification this shop does not yet perform.
-            'signing_keys' => [],
 
             // Scanner shape: the same facts, flattened.
             'protocol_version' => $this->version,
             'services' => $services,
             'capabilities' => $capabilities,
-            'endpoints' => $endpoints,
+            'endpoints' => ['catalog_search' => $endpoint.'/catalog/search'],
         ], maxAge: 300, request: $request);
     }
 }

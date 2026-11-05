@@ -10,6 +10,7 @@ namespace Koh\SyliusUcp\Tests\Controller;
 use Koh\SyliusAgentContracts\Context\AgentContext;
 use Koh\SyliusAgentContracts\Context\AgentContextFactoryInterface;
 use Koh\SyliusAgentContracts\Http\AgentJsonResponder;
+use Koh\SyliusUcp\Controller\CatalogSearchController;
 use Koh\SyliusUcp\Controller\CheckoutSessionController;
 use Koh\SyliusUcp\Controller\OpenApiController;
 use Koh\SyliusUcp\Controller\UcpProfileController;
@@ -19,13 +20,16 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * Every URL the profile and the OpenAPI document advertise must be a route this
- * bundle serves. The profile once said `checkout_sessions` while the route was
- * `checkout-sessions`, and pointed at an openapi.json nobody served.
+ * Every URL the profile and the OpenAPI document advertise on the shop must be
+ * a route this bundle serves. The profile once said `checkout_sessions` while
+ * the route was `checkout-sessions`, and pointed at an openapi.json nobody served.
  */
 final class AdvertisedPathsTest extends TestCase
 {
     private const ORIGIN = 'https://shop.example.com';
+
+    /** REST paths of the UCP 2026-08-25 REST binding, relative to the service endpoint. */
+    private const SPEC_PATHS = ['dev.ucp.shopping.catalog.search' => '/catalog/search'];
 
     /** @return iterable<string, array{bool}> */
     public static function checkoutSwitch(): iterable
@@ -34,18 +38,22 @@ final class AdvertisedPathsTest extends TestCase
         yield 'checkout on' => [true];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('checkoutSwitch')]
-    public function testEveryProfileUrlIsARoute(bool $checkout): void
+    /**
+     * Endpoints the profile names on this shop are routes; every capability
+     * maps to the REST path the spec gives it under the service endpoint.
+     */
+    public function testEveryProfileUrlOnTheShopIsARoute(): void
     {
-        $profile = $this->decode((new UcpProfileController($this->factory(), new AgentJsonResponder(), checkoutEnabled: $checkout))(new Request()));
+        $profile = $this->decode((new UcpProfileController($this->factory(), new AgentJsonResponder()))(new Request()));
 
+        $endpoint = $profile['ucp']['services']['dev.ucp.shopping'][0]['endpoint'];
         $urls = array_values($profile['endpoints']);
-        $urls[] = $profile['ucp']['services']['dev.ucp.shopping'][0]['schema'];
-        foreach ($profile['ucp']['capabilities'] as $entries) {
-            $urls[] = $entries[0]['schema'];
+        foreach (array_keys($profile['ucp']['capabilities']) as $capability) {
+            $urls[] = $endpoint.self::SPEC_PATHS[$capability];
         }
 
         foreach (array_unique($urls) as $url) {
+            self::assertStringStartsWith(self::ORIGIN, $url);
             self::assertContains(substr($url, \strlen(self::ORIGIN)), $this->routePaths(), $url.' is advertised but not routed');
         }
     }
@@ -67,7 +75,7 @@ final class AdvertisedPathsTest extends TestCase
     private function routePaths(): array
     {
         $paths = [];
-        foreach ([CheckoutSessionController::class, OpenApiController::class, UcpProfileController::class] as $class) {
+        foreach ([CatalogSearchController::class, CheckoutSessionController::class, OpenApiController::class, UcpProfileController::class] as $class) {
             foreach ((new \ReflectionClass($class))->getMethods() as $method) {
                 foreach ($method->getAttributes(Route::class) as $attribute) {
                     $paths[] = (string) $attribute->newInstance()->getPath();

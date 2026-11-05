@@ -14,18 +14,19 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * The OpenAPI document the UCP profile and the api-catalog point at as `schema`.
+ * The OpenAPI document the api-catalog points at as `service-desc`.
  *
- * It describes the two operations CheckoutSessionController implements, and
- * nothing more: a schema that lists operations the shop does not serve sends a
- * client to a 404 with the shop's own signature on the promise.
+ * It describes the operations this bundle serves (catalog search, and the
+ * checkout-session route when it is switched on), and nothing
+ * more: a schema that lists operations the shop does not serve sends a client
+ * to a 404 with the shop's own signature on the promise.
  */
 final class OpenApiController
 {
     public function __construct(
         private readonly AgentContextFactoryInterface $contextFactory,
         private readonly AgentJsonResponder $responder,
-        private readonly string $version = '2026-04-08',
+        private readonly string $version = '2026-08-25',
         private readonly string $endpointBase = '/ucp/v1',
         private readonly bool $checkoutEnabled = false,
     ) {
@@ -38,17 +39,30 @@ final class OpenApiController
         $envelope = ['$ref' => '#/components/schemas/UcpEnvelope'];
 
         $paths = [
-            '/catalog' => ['get' => [
-                'operationId' => 'searchCatalog',
-                'summary' => 'Search products by name (at most 200 results).',
+            '/catalog/search' => ['post' => [
+                'operationId' => 'search_catalog',
+                'summary' => 'Search products by name (UCP dev.ucp.shopping.catalog.search).',
+                'description' => 'Request and response follow https://ucp.dev/'.$this->version.'/schemas/shopping/catalog_search.json. At most '.CatalogSearchController::MAX_LIMIT.' products per page and '.CatalogSearchController::MAX_RESULTS.' per search term; filters and context are not applied.',
                 'parameters' => [
-                    ['name' => 'q', 'in' => 'query', 'required' => true, 'schema' => ['type' => 'string', 'minLength' => 1]],
-                    ['name' => 'localeCode', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'default' => 'en_US']],
                     ['name' => 'UCP-Agent', 'in' => 'header', 'required' => false, 'schema' => ['type' => 'string']],
                 ],
+                'requestBody' => [
+                    'required' => true,
+                    'content' => ['application/json' => ['schema' => [
+                        'type' => 'object',
+                        'required' => ['query'],
+                        'properties' => [
+                            'query' => ['type' => 'string', 'minLength' => 1],
+                            'pagination' => ['type' => 'object', 'properties' => [
+                                'cursor' => ['type' => 'string'],
+                                'limit' => ['type' => 'integer', 'minimum' => 1, 'default' => CatalogSearchController::DEFAULT_LIMIT],
+                            ]],
+                        ],
+                    ]]],
+                ],
                 'responses' => [
-                    '200' => ['description' => 'Matching products.', 'content' => ['application/json' => ['schema' => $envelope]]],
-                    '400' => ['description' => 'q is missing or empty.', 'content' => ['application/json' => ['schema' => $envelope]]],
+                    '200' => ['description' => 'Matching products, one page.', 'content' => ['application/json' => ['schema' => $envelope]]],
+                    '400' => ['description' => 'Malformed JSON, no query, or an invalid cursor or limit.', 'content' => ['application/json' => ['schema' => $envelope]]],
                 ],
             ]],
         ];
@@ -101,8 +115,8 @@ final class OpenApiController
                     'type' => 'object',
                     'properties' => [
                         'version' => ['type' => 'string'],
-                        'capabilities' => ['type' => 'array', 'items' => ['type' => 'string']],
-                        'agent' => ['type' => 'string'],
+                        'status' => ['type' => 'string', 'enum' => ['success', 'error']],
+                        'capabilities' => ['type' => 'object'],
                     ],
                 ]],
                 'additionalProperties' => true,

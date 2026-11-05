@@ -15,107 +15,125 @@ use PHPUnit\Framework\TestCase;
 use Sylius\Component\Core\Model\ChannelInterface;
 use Symfony\Component\HttpFoundation\Request;
 
+/**
+ * The business profile against UCP 2026-08-25 (schemas/profile.json#/$defs/business_schema).
+ */
 final class UcpProfileControllerTest extends TestCase
 {
-    /** The shape ucp.dev specifies: everything nested, plus signing_keys. */
-    public function testSpecificationShapeIsPresent(): void
+    public function testTheVersionIs20260825Everywhere(): void
     {
         $profile = $this->profile();
 
-        self::assertArrayHasKey('ucp', $profile);
-        self::assertSame('2026-04-08', $profile['ucp']['version']);
-        self::assertArrayHasKey('dev.ucp.shopping', $profile['ucp']['services']);
-        self::assertArrayHasKey('signing_keys', $profile);
+        self::assertSame('2026-08-25', $profile['ucp']['version']);
+        self::assertSame('2026-08-25', $profile['ucp']['services']['dev.ucp.shopping'][0]['version']);
+        self::assertSame('2026-08-25', $profile['ucp']['capabilities']['dev.ucp.shopping.catalog.search'][0]['version']);
+    }
+
+    /** `services` and `payment_handlers` are required even when empty, and both are maps. */
+    public function testPaymentHandlersIsAnEmptyObjectNotAList(): void
+    {
+        $json = $this->json();
+
+        self::assertStringContainsString('"payment_handlers": {}', $json);
     }
 
     /**
-     * The shape discovery scanners look for. Both readings exist in real
-     * clients, so the document serves both — extra members are ignored by any
-     * conforming parser.
+     * `dev.ucp.shopping.catalog` exists in no version, and checkout is not
+     * implemented per spec: the only capability is the one the shop serves.
      */
-    public function testScannerShapeIsPresent(): void
+    public function testOnlyCatalogSearchIsDeclared(): void
+    {
+        self::assertSame(['dev.ucp.shopping.catalog.search'], array_keys($this->profile()['ucp']['capabilities']));
+    }
+
+    /**
+     * A platform drops any entity whose schema host does not match its
+     * namespace, so `dev.ucp.*` schemas must come from ucp.dev.
+     */
+    public function testSchemaUrlsAreOnUcpDev(): void
+    {
+        $ucp = $this->profile()['ucp'];
+
+        self::assertSame(
+            'https://ucp.dev/2026-08-25/services/shopping/rest.openapi.json',
+            $ucp['services']['dev.ucp.shopping'][0]['schema'],
+        );
+        self::assertSame(
+            'https://ucp.dev/2026-08-25/schemas/shopping/catalog_search.json',
+            $ucp['capabilities']['dev.ucp.shopping.catalog.search'][0]['schema'],
+        );
+        self::assertSame(
+            'https://ucp.dev/2026-08-25/specification/shopping/catalog/search',
+            $ucp['capabilities']['dev.ucp.shopping.catalog.search'][0]['spec'],
+        );
+        self::assertSame('https://ucp.dev/2026-08-25/specification/overview', $ucp['services']['dev.ucp.shopping'][0]['spec']);
+    }
+
+    /** The REST binding of a business profile requires an endpoint. */
+    public function testTheServiceIsARestBindingWithAnAbsoluteEndpoint(): void
+    {
+        $service = $this->profile()['ucp']['services']['dev.ucp.shopping'][0];
+
+        self::assertSame('rest', $service['transport']);
+        self::assertSame('https://shop.example.com/ucp/v1', $service['endpoint']);
+    }
+
+    /** `signing_keys` was removed in 2026-04-08; `keys` is optional and the shop signs nothing. */
+    public function testNoSigningKeyMembers(): void
     {
         $profile = $this->profile();
 
-        self::assertSame('2026-04-08', $profile['protocol_version']);
-        self::assertArrayHasKey('services', $profile);
-        self::assertArrayHasKey('capabilities', $profile);
-        self::assertArrayHasKey('endpoints', $profile);
+        self::assertArrayNotHasKey('signing_keys', $profile);
+        self::assertArrayNotHasKey('keys', $profile);
     }
 
     /** The flat keys are projections; they must never disagree with the nested object. */
-    public function testBothShapesCarryTheSameFacts(): void
+    public function testTheScannerShapeCarriesTheSameFacts(): void
     {
         $profile = $this->profile();
 
         self::assertSame($profile['ucp']['version'], $profile['protocol_version']);
         self::assertSame($profile['ucp']['services'], $profile['services']);
         self::assertSame($profile['ucp']['capabilities'], $profile['capabilities']);
+        self::assertSame(['catalog_search' => 'https://shop.example.com/ucp/v1/catalog/search'], $profile['endpoints']);
     }
 
-    /** Clients call these from elsewhere, so relative paths would be useless. */
-    public function testEndpointsAreAbsoluteAndChannelScoped(): void
+    public function testAConfiguredVersionAndBaseAreUsed(): void
     {
-        $profile = $this->profile(checkout: true);
+        $profile = $this->profile(new UcpProfileController($this->factory(), new AgentJsonResponder(), '2026-09-01', '/agents/ucp'));
 
-        self::assertSame('https://shop.example.com/ucp/v1/catalog', $profile['endpoints']['catalog']);
-        self::assertSame('https://shop.example.com/ucp/v1/checkout-sessions', $profile['endpoints']['checkout']);
-        self::assertSame(
-            'https://shop.example.com/ucp/v1',
-            $profile['ucp']['services']['dev.ucp.shopping'][0]['endpoint'],
-        );
-    }
-
-    /** AUD-034-F01: with `koh_sylius_ucp.checkout` off nothing advertises the session route. */
-    public function testCheckoutIsNotAdvertisedWhenTheSwitchIsOff(): void
-    {
-        $profile = $this->profile();
-
-        self::assertSame(['dev.ucp.shopping.catalog'], array_keys($profile['ucp']['capabilities']));
-        self::assertSame(['catalog'], array_keys($profile['endpoints']));
-    }
-
-    public function testCheckoutIsAdvertisedWhenTheSwitchIsOn(): void
-    {
-        $profile = $this->profile(checkout: true);
-
-        self::assertArrayHasKey('dev.ucp.shopping.checkout', $profile['ucp']['capabilities']);
-        self::assertArrayHasKey('checkout', $profile['endpoints']);
-    }
-
-    /**
-     * Empty rather than absent: omitting the key violates the schema, and
-     * populating it would promise a verification this shop does not perform.
-     */
-    public function testSigningKeysIsPresentButEmpty(): void
-    {
-        self::assertSame([], $this->profile()['signing_keys']);
+        self::assertSame('2026-09-01', $profile['ucp']['version']);
+        self::assertSame('https://shop.example.com/agents/ucp', $profile['ucp']['services']['dev.ucp.shopping'][0]['endpoint']);
+        self::assertSame('https://ucp.dev/2026-09-01/schemas/shopping/catalog_search.json', $profile['capabilities']['dev.ucp.shopping.catalog.search'][0]['schema']);
     }
 
     public function testProfileIsPubliclyCacheable(): void
     {
-        $response = ($this->controller())(new Request());
+        $response = (new UcpProfileController($this->factory(), new AgentJsonResponder()))(new Request());
 
         self::assertSame(200, $response->getStatusCode());
         self::assertTrue($response->headers->hasCacheControlDirective('public'));
+        self::assertSame('300', $response->headers->getCacheControlDirective('max-age'));
         self::assertSame('*', $response->headers->get('Access-Control-Allow-Origin'));
     }
 
     /** @return array<string, mixed> */
-    private function profile(bool $checkout = false): array
+    private function profile(?UcpProfileController $controller = null): array
     {
         /** @var array<string, mixed> $decoded */
-        $decoded = json_decode(
-            (string) ($this->controller($checkout))(new Request())->getContent(),
-            true,
-            512,
-            \JSON_THROW_ON_ERROR,
-        );
+        $decoded = json_decode($this->json($controller), true, 512, \JSON_THROW_ON_ERROR);
 
         return $decoded;
     }
 
-    private function controller(bool $checkout = false): UcpProfileController
+    private function json(?UcpProfileController $controller = null): string
+    {
+        $controller ??= new UcpProfileController($this->factory(), new AgentJsonResponder());
+
+        return (string) $controller(new Request())->getContent();
+    }
+
+    private function factory(): AgentContextFactoryInterface
     {
         $channel = self::createStub(ChannelInterface::class);
         $channel->method('getCode')->willReturn('WEB_DE');
@@ -125,6 +143,6 @@ final class UcpProfileControllerTest extends TestCase
             new AgentContext($channel, 'https://shop.example.com', 'de_DE', ['de_DE']),
         );
 
-        return new UcpProfileController($factory, new AgentJsonResponder(), checkoutEnabled: $checkout);
+        return $factory;
     }
 }

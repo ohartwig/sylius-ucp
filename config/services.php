@@ -45,8 +45,12 @@ return static function (ContainerConfigurator $container): void {
 
     $services->get(\Koh\SyliusUcp\Controller\UcpProfileController::class)
         ->arg('$version', '%koh_sylius_ucp.version%')
-        ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%')
-        ->arg('$checkoutEnabled', '%koh_sylius_ucp.checkout%');
+        ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%');
+    $services->get(\Koh\SyliusUcp\Controller\CatalogSearchController::class)
+        ->arg('$version', '%koh_sylius_ucp.version%');
+    $services->set(\Koh\SyliusUcp\Catalog\DoctrineCatalogProductSource::class)
+        ->args([service('sylius.repository.product')]);
+    $services->alias(\Koh\SyliusUcp\Catalog\CatalogProductSource::class, \Koh\SyliusUcp\Catalog\DoctrineCatalogProductSource::class);
     $services->get(\Koh\SyliusUcp\Controller\OpenApiController::class)
         ->arg('$version', '%koh_sylius_ucp.version%')
         ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%')

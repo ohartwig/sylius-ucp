@@ -16,7 +16,6 @@ use Sylius\Component\Core\Model\OrderInterface;
 use Sylius\Component\Core\Model\OrderItemInterface;
 use Sylius\Component\Core\Model\ProductInterface;
 use Sylius\Component\Core\Model\ProductVariantInterface;
-use Sylius\Component\Core\Repository\ProductRepositoryInterface;
 use Sylius\Component\Core\TokenAssigner\OrderTokenAssignerInterface;
 use Sylius\Component\Order\Context\CartContextInterface;
 use Sylius\Component\Order\Modifier\OrderItemQuantityModifierInterface;
@@ -81,10 +80,38 @@ final class CheckoutSessionAbuseTest extends TestCase
         self::assertSame(5, $this->persisted);
     }
 
+    /**
+     * The route is not the UCP checkout capability, so no answer claims one:
+     * `ucp` names the version and nothing else.
+     */
+    public function testEveryAnswerNamesTheVersionButNoCapability(): void
+    {
+        $controller = $this->controller(limit: 1);
+        $valid = '{"line_items": [{"item": {"id": "SKU-1"}, "quantity": 1}]}';
+
+        $created = $this->decode($controller->createSession($this->post($valid)));
+        $limited = $this->decode($controller->createSession($this->post($valid)));
+        $invalid = $this->decode($this->controller(limit: 5)->createSession($this->post('{}')));
+
+        self::assertSame(['checkout_session', 'ucp'], array_keys($created));
+        self::assertSame(['version' => '2026-08-25'], $created['ucp']);
+        self::assertSame(['error' => 'too many checkout sessions, retry later', 'ucp' => ['version' => '2026-08-25']], $limited);
+        self::assertSame(['error' => 'line_items must be a non-empty list', 'ucp' => ['version' => '2026-08-25']], $invalid);
+    }
+
+    /** @return array<string, mixed> */
+    private function decode(\Symfony\Component\HttpFoundation\Response $response): array
+    {
+        /** @var array<string, mixed> $decoded */
+        $decoded = json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+
+        return $decoded;
+    }
+
     /** With `koh_sylius_ucp.checkout` off (the default) the route answers 404. */
     public function testTheRouteAnswers404WhenTheSwitchIsOff(): void
     {
-        $controller = new CheckoutSessionController(self::createStub(ProductRepositoryInterface::class), $this->creator());
+        $controller = new CheckoutSessionController($this->creator());
 
         try {
             $controller->createSession($this->post('{"line_items": [{"item": {"id": "SKU-1"}, "quantity": 1}]}'));
@@ -114,7 +141,7 @@ final class CheckoutSessionAbuseTest extends TestCase
     {
         $this->expectException(\LogicException::class);
 
-        new CheckoutSessionController(self::createStub(ProductRepositoryInterface::class), $this->creator(), checkoutEnabled: true);
+        new CheckoutSessionController($this->creator(), checkoutEnabled: true);
     }
 
     private function post(string $body): Request
@@ -130,7 +157,6 @@ final class CheckoutSessionAbuseTest extends TestCase
         );
 
         return new CheckoutSessionController(
-            self::createStub(ProductRepositoryInterface::class),
             $this->creator(),
             checkoutEnabled: true,
             checkoutLimiter: $limiter,
