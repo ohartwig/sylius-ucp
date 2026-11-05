@@ -1,3 +1,9 @@
+## [1.2.0](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.25...v1.2.0) (2026-11-05)
+
+### :sparkles: Features
+
+* **ucp:** negotiate with the platform profile, add catalog lookup and the permalink handoff ([f1246c5](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/f1246c521b2166146e1556bc952efe377fd386f9))
+
 ## [1.1.25](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.24...v1.1.25) (2026-11-05)
 
 ### :bug: Fixes
