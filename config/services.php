@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
+use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\RateLimiter\Storage\CacheStorage;
+
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 
 return static function (ContainerConfigurator $container): void {
@@ -15,21 +18,43 @@ return static function (ContainerConfigurator $container): void {
         ->autowire()
         ->autoconfigure();
 
-    $services->load('Koh\\SyliusUcp\\', __DIR__ . '/../src/');
+    $services->load('Koh\\SyliusUcp\\', __DIR__ . '/../src/')
+        ->exclude(__DIR__ . '/../src/Exception/');
+
+    // Rate limiter for anonymous checkout sessions (AUD-034-F01), keyed by the
+    // client address the installation's trusted_proxies yields.
+    $services->set('koh_sylius_ucp.checkout_limiter.storage', CacheStorage::class)
+        ->args([service('cache.app')]);
+    $services->set('koh_sylius_ucp.checkout_limiter', RateLimiterFactory::class)
+        ->args([
+            [
+                'id' => 'koh_sylius_ucp_checkout',
+                'policy' => 'sliding_window',
+                'limit' => '%koh_sylius_ucp.checkout_limit%',
+                'interval' => '%koh_sylius_ucp.checkout_interval%',
+            ],
+            service('koh_sylius_ucp.checkout_limiter.storage'),
+        ]);
 
     // CartContextInterface + OrderTokenAssignerInterface autowire from Sylius;
     // the order ObjectManager is ambiguous, so bind the Sylius order manager.
     $services->get(\Koh\SyliusUcp\Service\CheckoutSessionCreator::class)
-        ->arg('$orderManager', service('sylius.manager.order'));
+        ->arg('$orderManager', service('sylius.manager.order'))
+        ->arg('$variantRepository', service('sylius.repository.product_variant'))
+        ->arg('$orderItemFactory', service('sylius.factory.order_item'));
 
     $services->get(\Koh\SyliusUcp\Controller\UcpProfileController::class)
         ->arg('$version', '%koh_sylius_ucp.version%')
-        ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%');
+        ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%')
+        ->arg('$checkoutEnabled', '%koh_sylius_ucp.checkout%');
     $services->get(\Koh\SyliusUcp\Controller\OpenApiController::class)
         ->arg('$version', '%koh_sylius_ucp.version%')
-        ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%');
+        ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%')
+        ->arg('$checkoutEnabled', '%koh_sylius_ucp.checkout%');
     $services->get(\Koh\SyliusUcp\Controller\CheckoutSessionController::class)
-        ->arg('$version', '%koh_sylius_ucp.version%');
+        ->arg('$version', '%koh_sylius_ucp.version%')
+        ->arg('$checkoutEnabled', '%koh_sylius_ucp.checkout%')
+        ->arg('$checkoutLimiter', service('koh_sylius_ucp.checkout_limiter'));
 
     $services->get(\Koh\SyliusUcp\Agent\UcpEndpointProvider::class)
         ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%');

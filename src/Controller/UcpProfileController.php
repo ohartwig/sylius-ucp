@@ -38,6 +38,7 @@ final class UcpProfileController
         private readonly AgentJsonResponder $responder,
         private readonly string $version = '2026-04-08',
         private readonly string $endpointBase = '/ucp/v1',
+        private readonly bool $checkoutEnabled = false,
     ) {
     }
 
@@ -64,12 +65,19 @@ final class UcpProfileController
                 'spec' => 'https://ucp.dev/'.$this->version.'/specification/catalog',
                 'schema' => $schema,
             ]],
-            'dev.ucp.shopping.checkout' => [[
+        ];
+        $endpoints = ['catalog' => $endpoint.'/catalog'];
+
+        // Checkout is advertised only when `koh_sylius_ucp.checkout` is on; with
+        // it off the session route answers 404 (AUD-034-F01).
+        if ($this->checkoutEnabled) {
+            $capabilities['dev.ucp.shopping.checkout'] = [[
                 'version' => $this->version,
                 'spec' => 'https://ucp.dev/'.$this->version.'/specification/checkout',
                 'schema' => $schema,
-            ]],
-        ];
+            ]];
+            $endpoints['checkout'] = $endpoint.'/checkout-sessions';
+        }
 
         return $this->responder->respond([
             // Specification shape.
@@ -87,10 +95,7 @@ final class UcpProfileController
             'protocol_version' => $this->version,
             'services' => $services,
             'capabilities' => $capabilities,
-            'endpoints' => [
-                'catalog' => $endpoint.'/catalog',
-                'checkout' => $endpoint.'/checkout-sessions',
-            ],
+            'endpoints' => $endpoints,
         ], maxAge: 300, request: $request);
     }
 }
