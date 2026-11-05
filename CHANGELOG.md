@@ -1,3 +1,9 @@
+## [1.1.24](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.23...v1.1.24) (2026-11-05)
+
+### :bug: Fixes
+
+* **security:** AUD-034 F01 — gate, limit and fill UCP checkout sessions ([1a16db3](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/1a16db3d9764661e36ca58abc2f6eb4a39c68fa2))
+
 ## [1.1.23](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.22...v1.1.23) (2026-10-18)
 
 ### :bug: Fixes
