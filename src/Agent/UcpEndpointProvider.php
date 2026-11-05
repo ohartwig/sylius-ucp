@@ -29,7 +29,7 @@ final class UcpEndpointProvider implements AgentEndpointProviderInterface, ApiCa
             path: '/.well-known/ucp',
             title: 'UCP profile',
             protocol: 'ucp',
-            description: 'Universal Commerce Protocol: catalogue search.',
+            description: 'Universal Commerce Protocol: catalogue search and lookup, and a permalink that hands the selection to the buyer\'s cart.',
         );
     }
 

@@ -38,12 +38,34 @@ final class UcpProfileControllerTest extends TestCase
     }
 
     /**
-     * `dev.ucp.shopping.catalog` exists in no version, and checkout is not
-     * implemented per spec: the only capability is the one the shop serves.
+     * Exactly what the shop serves. Checkout is not declared: a UCP checkout
+     * completes with a payment instrument, and this shop's purchase runs in
+     * the buyer's browser behind its age confirmation.
      */
-    public function testOnlyCatalogSearchIsDeclared(): void
+    public function testCatalogAndPermalinkAreDeclaredAndCheckoutIsNot(): void
     {
-        self::assertSame(['dev.ucp.shopping.catalog.search'], array_keys($this->profile()['ucp']['capabilities']));
+        self::assertSame(
+            ['dev.ucp.shopping.catalog.search', 'dev.ucp.shopping.catalog.lookup', 'dev.ucp.shopping.permalink'],
+            array_keys($this->profile()['ucp']['capabilities']),
+        );
+    }
+
+    /** The permalink config.endpoint is absolute, without trailing slash. */
+    public function testThePermalinkNamesItsBrowserEndpoint(): void
+    {
+        $permalink = $this->profile()['ucp']['capabilities']['dev.ucp.shopping.permalink'][0];
+
+        self::assertSame(['endpoint' => 'https://shop.example.com/ucp/buy'], $permalink['config']);
+        self::assertSame('https://ucp.dev/2026-08-25/schemas/shopping/permalink.json', $permalink['schema']);
+        self::assertSame('https://ucp.dev/2026-08-25/specification/permalink', $permalink['spec']);
+    }
+
+    public function testASwitchedOffPermalinkIsNotDeclared(): void
+    {
+        $profile = $this->profile(new UcpProfileController($this->factory(), new AgentJsonResponder(), permalinkEnabled: false));
+
+        self::assertArrayNotHasKey('dev.ucp.shopping.permalink', $profile['ucp']['capabilities']);
+        self::assertArrayNotHasKey('permalink', $profile['endpoints']);
     }
 
     /**
@@ -95,7 +117,12 @@ final class UcpProfileControllerTest extends TestCase
         self::assertSame($profile['ucp']['version'], $profile['protocol_version']);
         self::assertSame($profile['ucp']['services'], $profile['services']);
         self::assertSame($profile['ucp']['capabilities'], $profile['capabilities']);
-        self::assertSame(['catalog_search' => 'https://shop.example.com/ucp/v1/catalog/search'], $profile['endpoints']);
+        self::assertSame([
+            'catalog_search' => 'https://shop.example.com/ucp/v1/catalog/search',
+            'catalog_lookup' => 'https://shop.example.com/ucp/v1/catalog/lookup',
+            'catalog_product' => 'https://shop.example.com/ucp/v1/catalog/product',
+            'permalink' => 'https://shop.example.com/ucp/buy',
+        ], $profile['endpoints']);
     }
 
     public function testAConfiguredVersionAndBaseAreUsed(): void

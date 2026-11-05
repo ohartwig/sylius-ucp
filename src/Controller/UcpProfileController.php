@@ -17,10 +17,19 @@ use Symfony\Component\Routing\Attribute\Route;
  * UCP discovery profile at /.well-known/ucp (business profile, UCP 2026-08-25).
  *
  * Declares exactly what the shop implements per the specification:
- * `dev.ucp.shopping.catalog.search` over REST. Nothing else is a capability.
- * The checkout-session route this bundle can serve is not the UCP checkout
- * capability (no update, complete or cancel), so it is never declared here,
- * whatever `koh_sylius_ucp.checkout` says.
+ *
+ *   dev.ucp.shopping.catalog.search   POST {endpoint}/catalog/search
+ *   dev.ucp.shopping.catalog.lookup   POST {endpoint}/catalog/lookup, /catalog/product
+ *   dev.ucp.shopping.permalink        GET  /ucp/buy/{items}  (303 into the buyer's cart)
+ *
+ * There is no `dev.ucp.shopping.checkout`. A UCP checkout is a session the
+ * platform completes with a payment instrument through a declared payment
+ * handler; this shop sells age-restricted goods (JuSchG, TabakerzG) whose
+ * purchase runs in the buyer's browser, behind the shop's age confirmation,
+ * with the shop's own payment provider. The permalink is the capability UCP
+ * defines for that handoff, and `payment_handlers` stays empty — present,
+ * because the profile schema requires the registry, and empty, because the
+ * shop accepts no instrument from an agent.
  *
  * `schema` URLs point at ucp.dev, not at this shop: a platform accepts an
  * entity only when its schema host matches the namespace (`dev.ucp.*` must
@@ -42,13 +51,15 @@ final class UcpProfileController
         private readonly AgentJsonResponder $responder,
         private readonly string $version = '2026-08-25',
         private readonly string $endpointBase = '/ucp/v1',
+        private readonly bool $permalinkEnabled = true,
     ) {
     }
 
     #[Route('/.well-known/ucp', name: 'koh_ucp_profile', methods: ['GET', 'HEAD'])]
     public function __invoke(Request $request): Response
     {
-        $endpoint = $this->contextFactory->create()->url($this->endpointBase);
+        $context = $this->contextFactory->create();
+        $endpoint = $context->url($this->endpointBase);
         $ucpDev = 'https://ucp.dev/'.$this->version;
 
         $services = [
@@ -67,7 +78,27 @@ final class UcpProfileController
                 'spec' => $ucpDev.'/specification/shopping/catalog/search',
                 'schema' => $ucpDev.'/schemas/shopping/catalog_search.json',
             ]],
+            CatalogLookupController::CAPABILITY => [[
+                'version' => $this->version,
+                'spec' => $ucpDev.'/specification/shopping/catalog/lookup',
+                'schema' => $ucpDev.'/schemas/shopping/catalog_lookup.json',
+            ]],
         ];
+        $endpoints = [
+            'catalog_search' => $endpoint.'/catalog/search',
+            'catalog_lookup' => $endpoint.'/catalog/lookup',
+            'catalog_product' => $endpoint.'/catalog/product',
+        ];
+        if ($this->permalinkEnabled) {
+            $permalink = $context->url(PermalinkController::PATH);
+            $capabilities[PermalinkController::CAPABILITY] = [[
+                'version' => $this->version,
+                'spec' => $ucpDev.'/specification/permalink',
+                'schema' => $ucpDev.'/schemas/shopping/permalink.json',
+                'config' => ['endpoint' => $permalink],
+            ]];
+            $endpoints['permalink'] = $permalink;
+        }
 
         return $this->responder->respond([
             // Specification shape. No `keys`: the shop signs nothing yet, and
@@ -85,7 +116,7 @@ final class UcpProfileController
             'protocol_version' => $this->version,
             'services' => $services,
             'capabilities' => $capabilities,
-            'endpoints' => ['catalog_search' => $endpoint.'/catalog/search'],
+            'endpoints' => $endpoints,
         ], maxAge: 300, request: $request);
     }
 }

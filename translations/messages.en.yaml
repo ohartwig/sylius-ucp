@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Kai Ole Hartwig
+# SPDX-License-Identifier: MIT
+koh_ucp:
+    permalink:
+        added: 'The items your assistant picked are in your cart.'
+        capped: 'The items your assistant picked are in your cart; quantities above 99 were reduced to 99.'
+        partial: 'Some items your assistant picked are in your cart; the others are not available in this shop right now.'
+        unavailable: 'The items in this link are not available in this shop right now.'
+        blocked: 'The items could not be added yet. Please follow the shop''s prompt (for example the age confirmation), then open the link again.'
+        invalid: 'This shopping link is not valid.'

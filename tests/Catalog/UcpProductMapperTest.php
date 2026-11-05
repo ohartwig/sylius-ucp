@@ -8,7 +8,9 @@ declare(strict_types=1);
 namespace Koh\SyliusUcp\Tests\Catalog;
 
 use Koh\SyliusAgentContracts\Context\AgentContext;
+use Koh\SyliusUcp\Catalog\CatalogFilter;
 use Koh\SyliusUcp\Catalog\UcpProductMapper;
+use Koh\SyliusUcp\Tests\Support\Catalog;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Sylius\Component\Core\Model\Channel;
@@ -24,6 +26,7 @@ use Sylius\Component\Currency\Model\Currency;
  * against what Sylius actually returns.
  */
 #[CoversClass(UcpProductMapper::class)]
+#[CoversClass(CatalogFilter::class)]
 final class UcpProductMapperTest extends TestCase
 {
     public function testAProductMapsToTheUcpShape(): void
@@ -150,6 +153,66 @@ final class UcpProductMapperTest extends TestCase
         $mapped = (new UcpProductMapper())->map($product, $this->context($channel));
 
         self::assertSame(['V-2'], array_column($mapped['variants'] ?? [], 'id'));
+    }
+
+    public function testTaxonsAreCategoriesAndOptionsAreNamed(): void
+    {
+        $channel = Catalog::channel();
+        $product = Catalog::product($channel, 'CIG', [
+            ['code' => 'CIG-R5', 'options' => ['Format' => 'Robusto', 'Packung' => '5er']],
+            ['code' => 'CIG-C5', 'options' => ['Format' => 'Corona', 'Packung' => '5er']],
+        ], ['cigars', 'cuba', 'cigars']);
+
+        $mapped = (new UcpProductMapper())->map($product, Catalog::context($channel));
+
+        self::assertNotNull($mapped);
+        self::assertSame([['value' => 'cigars', 'taxonomy' => 'merchant'], ['value' => 'cuba', 'taxonomy' => 'merchant']], $mapped['categories']);
+        self::assertSame([
+            ['name' => 'Format', 'values' => [['id' => 'format_robusto', 'label' => 'Robusto'], ['id' => 'format_corona', 'label' => 'Corona']]],
+            ['name' => 'Packung', 'values' => [['id' => 'packung_5er', 'label' => '5er']]],
+        ], $mapped['options']);
+        self::assertSame([['name' => 'Format', 'id' => 'format_robusto', 'label' => 'Robusto'], ['name' => 'Packung', 'id' => 'packung_5er', 'label' => '5er']], $mapped['variants'][0]['options']);
+    }
+
+    public function testWithoutOptionsOrTaxonsNeitherIsEmitted(): void
+    {
+        $channel = Catalog::channel();
+        $mapped = (new UcpProductMapper())->map(Catalog::product($channel, 'P', [['code' => 'V']]), Catalog::context($channel));
+
+        self::assertNotNull($mapped);
+        self::assertArrayNotHasKey('categories', $mapped);
+        self::assertArrayNotHasKey('options', $mapped);
+        self::assertArrayNotHasKey('options', $mapped['variants'][0]);
+    }
+
+    /** A price filter drops the variants outside it, and the product when none is left. */
+    public function testAPriceFilterDropsVariantsOutsideIt(): void
+    {
+        $channel = Catalog::channel();
+        $product = Catalog::product($channel, 'P', [['code' => 'A', 'price' => 500], ['code' => 'B', 'price' => 1500], ['code' => 'C', 'price' => 2500]]);
+        $mapper = new UcpProductMapper();
+
+        $mapped = $mapper->map($product, Catalog::context($channel), null, new CatalogFilter([], 500, 1500));
+
+        self::assertNotNull($mapped);
+        self::assertSame(['A', 'B'], array_column($mapped['variants'], 'id'));
+        self::assertSame(1500, $mapped['price_range']['max']['amount']);
+        self::assertNull($mapper->map($product, Catalog::context($channel), null, new CatalogFilter([], 3000)));
+    }
+
+    public function testTheRequestedLocaleIsUsed(): void
+    {
+        $channel = Catalog::channel();
+        $product = Catalog::product($channel, 'P', [['code' => 'V']]);
+        $product->setCurrentLocale('en_GB');
+        $product->setName('Robusto (EN)');
+        $product->setSlug('robusto-en');
+
+        $mapped = (new UcpProductMapper())->map($product, Catalog::context($channel), 'en_GB');
+
+        self::assertNotNull($mapped);
+        self::assertSame('Robusto (EN)', $mapped['title']);
+        self::assertSame('https://shop.example.com/en_GB/products/robusto-en', $mapped['url']);
     }
 
     private function channel(): Channel

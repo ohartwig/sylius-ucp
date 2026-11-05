@@ -16,10 +16,11 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * The OpenAPI document the api-catalog points at as `service-desc`.
  *
- * It describes the operations this bundle serves (catalog search, and the
- * checkout-session route when it is switched on), and nothing
- * more: a schema that lists operations the shop does not serve sends a client
- * to a 404 with the shop's own signature on the promise.
+ * It describes the operations this bundle serves — the catalog subset of
+ * UCP's shopping REST binding — and nothing more: a schema that lists
+ * operations the shop does not serve sends a client to a 404 with the shop's
+ * own signature on the promise. Request and response bodies reference the
+ * official UCP schemas of the declared version.
  */
 final class OpenApiController
 {
@@ -28,7 +29,6 @@ final class OpenApiController
         private readonly AgentJsonResponder $responder,
         private readonly string $version = '2026-08-25',
         private readonly string $endpointBase = '/ucp/v1',
-        private readonly bool $checkoutEnabled = false,
     ) {
     }
 
@@ -36,91 +36,126 @@ final class OpenApiController
     public function __invoke(Request $request): Response
     {
         $server = $this->contextFactory->create()->url($this->endpointBase);
-        $envelope = ['$ref' => '#/components/schemas/UcpEnvelope'];
+        $schemas = 'https://ucp.dev/'.$this->version.'/schemas/';
 
-        $paths = [
-            '/catalog/search' => ['post' => [
-                'operationId' => 'search_catalog',
-                'summary' => 'Search products by name (UCP dev.ucp.shopping.catalog.search).',
-                'description' => 'Request and response follow https://ucp.dev/'.$this->version.'/schemas/shopping/catalog_search.json. At most '.CatalogSearchController::MAX_LIMIT.' products per page and '.CatalogSearchController::MAX_RESULTS.' per search term; filters and context are not applied.',
+        $operation = fn (string $id, string $summary, string $description, string $requestSchema, string $responseSchema): array => [
+            'post' => [
+                'operationId' => $id,
+                'summary' => $summary,
+                'description' => $description,
                 'parameters' => [
-                    ['name' => 'UCP-Agent', 'in' => 'header', 'required' => false, 'schema' => ['type' => 'string']],
+                    ['$ref' => '#/components/parameters/ucp_agent'],
+                    ['$ref' => '#/components/parameters/request_id'],
+                    ['$ref' => '#/components/parameters/accept_language'],
                 ],
                 'requestBody' => [
                     'required' => true,
-                    'content' => ['application/json' => ['schema' => [
-                        'type' => 'object',
-                        'required' => ['query'],
-                        'properties' => [
-                            'query' => ['type' => 'string', 'minLength' => 1],
-                            'pagination' => ['type' => 'object', 'properties' => [
-                                'cursor' => ['type' => 'string'],
-                                'limit' => ['type' => 'integer', 'minimum' => 1, 'default' => CatalogSearchController::DEFAULT_LIMIT],
-                            ]],
-                        ],
-                    ]]],
+                    'content' => ['application/json' => ['schema' => ['$ref' => $schemas.$requestSchema]]],
                 ],
                 'responses' => [
-                    '200' => ['description' => 'Matching products, one page.', 'content' => ['application/json' => ['schema' => $envelope]]],
-                    '400' => ['description' => 'Malformed JSON, no query, or an invalid cursor or limit.', 'content' => ['application/json' => ['schema' => $envelope]]],
+                    '200' => [
+                        'description' => 'The operation result, or a UCP error response (`ucp.status: error`) for outcomes such as `capabilities_incompatible` or `not_found`.',
+                        'content' => ['application/json' => ['schema' => ['oneOf' => [
+                            ['$ref' => $schemas.$responseSchema],
+                            ['$ref' => '#/components/schemas/error_response'],
+                        ]]]],
+                    ],
+                    '400' => [
+                        'description' => 'Invalid request (UCP error response, `invalid_request` or `request_too_large`), or a missing or unusable UCP-Agent profile URL (transport error `invalid_profile_url`).',
+                        'content' => ['application/json' => ['schema' => ['oneOf' => [
+                            ['$ref' => '#/components/schemas/error_response'],
+                            ['$ref' => '#/components/schemas/transport_error'],
+                        ]]]],
+                    ],
+                    '422' => ['$ref' => '#/components/responses/negotiation_failed'],
+                    '424' => ['$ref' => '#/components/responses/negotiation_failed'],
+                    '503' => ['$ref' => '#/components/responses/discovery_busy'],
                 ],
-            ]],
+            ],
         ];
 
-        // Documented only when `koh_sylius_ucp.checkout` is on (AUD-034-F01).
-        if ($this->checkoutEnabled) {
-            $paths['/checkout-sessions'] = ['post' => [
-                'operationId' => 'createCheckoutSession',
-                'summary' => 'Create a checkout session holding the given line items.',
-                'parameters' => [
-                    ['name' => 'UCP-Agent', 'in' => 'header', 'required' => false, 'schema' => ['type' => 'string']],
-                ],
-                'requestBody' => [
-                    'required' => true,
-                    'content' => ['application/json' => ['schema' => [
-                        'type' => 'object',
-                        'required' => ['line_items'],
-                        'properties' => ['line_items' => [
-                            'type' => 'array',
-                            'minItems' => 1,
-                            'maxItems' => 50,
-                            'items' => [
-                                'type' => 'object',
-                                'required' => ['item'],
-                                'properties' => [
-                                    'item' => ['type' => 'object', 'required' => ['id'], 'properties' => ['id' => ['type' => 'string', 'description' => 'Product variant code.']]],
-                                    'quantity' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 99, 'default' => 1],
-                                ],
-                            ],
-                        ]],
-                    ]]],
-                ],
-                'responses' => [
-                    '201' => ['description' => 'The created session.', 'content' => ['application/json' => ['schema' => $envelope]]],
-                    '400' => ['description' => 'No body, no line items, or an unknown item; nothing is persisted.', 'content' => ['application/json' => ['schema' => $envelope]]],
-                    '429' => ['description' => 'Rate limit reached; see Retry-After.', 'content' => ['application/json' => ['schema' => $envelope]]],
-                ],
-            ]];
-        }
+        $paths = [
+            '/catalog/search' => $operation(
+                'search_catalog',
+                'Search products (dev.ucp.shopping.catalog.search).',
+                \sprintf('Needs a query or a filter (categories: taxon codes; price: minor units). At most %d products per page and %d per search; signals and attribution are not used.', CatalogSearchController::MAX_LIMIT, CatalogSearchController::MAX_RESULTS),
+                'shopping/catalog_search.json#/$defs/search_request',
+                'shopping/catalog_search.json#/$defs/search_response',
+            ),
+            '/catalog/lookup' => $operation(
+                'lookup_catalog',
+                'Look up products by product or variant code (dev.ucp.shopping.catalog.lookup).',
+                \sprintf('At most %d identifiers per request; unknown identifiers are reported as not_found info messages.', CatalogLookupController::MAX_IDS),
+                'shopping/catalog_lookup.json#/$defs/lookup_request',
+                'shopping/catalog_lookup.json#/$defs/lookup_response',
+            ),
+            '/catalog/product' => $operation(
+                'get_product',
+                'One product in detail, with option selection (dev.ucp.shopping.catalog.lookup).',
+                'A variant code makes that variant the featured one; selected/preferences narrow the variants of a product code.',
+                'shopping/catalog_lookup.json#/$defs/get_product_request',
+                'shopping/catalog_lookup.json#/$defs/get_product_response',
+            ),
+        ];
 
         return $this->responder->respond([
             'openapi' => '3.1.0',
-            'info' => ['title' => 'UCP shopping service', 'version' => $this->version],
+            'info' => [
+                'title' => 'UCP shopping service (catalog)',
+                'version' => $this->version,
+                'description' => 'The catalog operations of the UCP shopping REST binding (https://ucp.dev/'.$this->version.'/services/shopping/rest.openapi.json). Every request names its platform profile in UCP-Agent; the shop fetches it and negotiates before it answers.',
+            ],
             'servers' => [['url' => $server]],
             'paths' => $paths,
-            'components' => ['schemas' => ['UcpEnvelope' => [
-                'type' => 'object',
-                'required' => ['ucp'],
-                'properties' => ['ucp' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'version' => ['type' => 'string'],
-                        'status' => ['type' => 'string', 'enum' => ['success', 'error']],
-                        'capabilities' => ['type' => 'object'],
+            'components' => [
+                'parameters' => [
+                    'ucp_agent' => [
+                        'name' => 'UCP-Agent',
+                        'in' => 'header',
+                        'required' => true,
+                        'description' => 'RFC 8941 dictionary naming the platform profile: profile="https://platform.example/.well-known/ucp".',
+                        'schema' => ['type' => 'string'],
                     ],
-                ]],
-                'additionalProperties' => true,
-            ]]],
+                    'request_id' => [
+                        'name' => 'Request-Id',
+                        'in' => 'header',
+                        'required' => false,
+                        'description' => 'Tracing identifier; accepted, not required by this shop.',
+                        'schema' => ['type' => 'string'],
+                    ],
+                    'accept_language' => [
+                        'name' => 'Accept-Language',
+                        'in' => 'header',
+                        'required' => false,
+                        'description' => 'Content language when context.language is absent.',
+                        'schema' => ['type' => 'string'],
+                    ],
+                ],
+                'schemas' => [
+                    'error_response' => ['$ref' => $schemas.'common/types/error_response.json'],
+                    'transport_error' => [
+                        'type' => 'object',
+                        'description' => 'Negotiation and discovery failures (UCP overview, "Error Handling", REST).',
+                        'required' => ['code', 'content'],
+                        'properties' => [
+                            'code' => ['type' => 'string', 'enum' => ['invalid_profile_url', 'profile_unreachable', 'profile_malformed', 'version_unsupported']],
+                            'content' => ['type' => 'string'],
+                            'continue_url' => ['type' => 'string', 'format' => 'uri'],
+                        ],
+                    ],
+                ],
+                'responses' => [
+                    'negotiation_failed' => [
+                        'description' => '422: profile_malformed or version_unsupported; 424: profile_unreachable.',
+                        'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/transport_error']]],
+                    ],
+                    'discovery_busy' => [
+                        'description' => 'The shop\'s budget for fetching unknown platform profiles is spent; retry after Retry-After seconds.',
+                        'headers' => ['Retry-After' => ['schema' => ['type' => 'integer']]],
+                        'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/transport_error']]],
+                    ],
+                ],
+            ],
         ], maxAge: 300, request: $request);
     }
 }

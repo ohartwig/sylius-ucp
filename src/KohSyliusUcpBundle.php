@@ -7,41 +7,78 @@ declare(strict_types=1);
 
 namespace Koh\SyliusUcp;
 
+use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 
+/**
+ * UCP business for a Sylius shop: profile, catalog search and lookup over
+ * REST, and the permalink handoff to the buyer's browser.
+ *
+ *     koh_sylius_ucp:
+ *         age_restriction: 18        # shop-wide minimum age, or null
+ *         permalink:
+ *             enabled: true
+ *             cart_route: sylius_shop_cart_summary
+ *             fallback_route: sylius_shop_homepage
+ *
+ * Every value is also a container parameter (`koh_sylius_ucp.*`); an app that
+ * defines one of them before the bundle loads keeps its own value.
+ */
 final class KohSyliusUcpBundle extends AbstractBundle
 {
+    public function configure(DefinitionConfigurator $definition): void
+    {
+        $definition->rootNode()
+            ->children()
+                ->integerNode('age_restriction')
+                    ->defaultNull()
+                    ->min(1)
+                    ->info('Minimum age for every product (as koh_acp/koh_a2a age_restriction). Carried as an age_restricted disclosure on catalog responses.')
+                ->end()
+                ->arrayNode('permalink')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')
+                            ->defaultTrue()
+                            ->info('Serve /ucp/buy and declare dev.ucp.shopping.permalink in the profile.')
+                        ->end()
+                        ->scalarNode('cart_route')
+                            ->defaultValue('sylius_shop_cart_summary')
+                            ->info('Where the buyer lands once the items are in their cart.')
+                        ->end()
+                        ->scalarNode('fallback_route')
+                            ->defaultValue('sylius_shop_homepage')
+                            ->info('Where the buyer lands when nothing could be added (unknown items, a shop gate refused, an invalid link).')
+                        ->end()
+                    ->end()
+                ->end()
+            ->end();
+    }
+
     /** @param array<mixed> $config */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
-        // Default UCP settings. Set here (not in config/packages/*.yaml, which
-        // Symfony does not auto-load from a bundle) so consumers get working
-        // defaults without duplicating them in their app config. Apps can still
-        // override by defining these parameters before the bundle loads.
-        if (!$builder->hasParameter('koh_sylius_ucp.version')) {
-            $builder->setParameter('koh_sylius_ucp.version', '2026-08-25');
-        }
-        if (!$builder->hasParameter('koh_sylius_ucp.endpoint_base')) {
-            $builder->setParameter('koh_sylius_ucp.endpoint_base', '/ucp/v1');
-        }
-        // The checkout-session route writes a cart for an anonymous caller, so
-        // it is opt-in (AUD-034-F01): off, the route answers 404 and the OpenAPI
-        // document does not describe it. The UCP profile never declares it: the
-        // route is not the UCP checkout capability. Set it from the same decision
-        // as `koh_acp.checkout`.
-        if (!$builder->hasParameter('koh_sylius_ucp.checkout')) {
-            $builder->setParameter('koh_sylius_ucp.checkout', false);
-        }
-        // Sliding window per client address in front of the session creator.
-        if (!$builder->hasParameter('koh_sylius_ucp.checkout_limit')) {
-            $builder->setParameter('koh_sylius_ucp.checkout_limit', 10);
-        }
-        if (!$builder->hasParameter('koh_sylius_ucp.checkout_interval')) {
-            $builder->setParameter('koh_sylius_ucp.checkout_interval', '1 minute');
+        $permalink = \is_array($config['permalink'] ?? null) ? $config['permalink'] : [];
+
+        $defaults = [
+            'koh_sylius_ucp.version' => '2026-08-25',
+            'koh_sylius_ucp.endpoint_base' => '/ucp/v1',
+            'koh_sylius_ucp.age_restriction' => \is_int($config['age_restriction'] ?? null) ? $config['age_restriction'] : null,
+            'koh_sylius_ucp.permalink.enabled' => (bool) ($permalink['enabled'] ?? true),
+            'koh_sylius_ucp.permalink.cart_route' => (string) ($permalink['cart_route'] ?? 'sylius_shop_cart_summary'),
+            'koh_sylius_ucp.permalink.fallback_route' => (string) ($permalink['fallback_route'] ?? 'sylius_shop_homepage'),
+            // Global budget for fetching unknown platform profiles.
+            'koh_sylius_ucp.profile_fetch_limit' => 20,
+            'koh_sylius_ucp.profile_fetch_interval' => '1 minute',
+        ];
+        foreach ($defaults as $name => $value) {
+            if (!$builder->hasParameter($name)) {
+                $builder->setParameter($name, $value);
+            }
         }
 
-        $container->import(\dirname(__DIR__) . '/config/services.php');
+        $container->import(\dirname(__DIR__).'/config/services.php');
     }
 }

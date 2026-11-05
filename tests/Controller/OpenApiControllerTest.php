@@ -23,74 +23,68 @@ use Symfony\Component\HttpFoundation\Request;
 #[CoversClass(OpenApiController::class)]
 final class OpenApiControllerTest extends TestCase
 {
-    public function testTheCatalogSearchOperationIsDescribedAsServed(): void
+    public function testExactlyTheServedCatalogOperationsAreDescribed(): void
     {
-        $envelope = ['$ref' => '#/components/schemas/UcpEnvelope'];
+        $paths = $this->document()['paths'];
 
-        self::assertSame(['post' => [
-            'operationId' => 'search_catalog',
-            'summary' => 'Search products by name (UCP dev.ucp.shopping.catalog.search).',
-            'description' => 'Request and response follow https://ucp.dev/2026-08-25/schemas/shopping/catalog_search.json. At most 50 products per page and 200 per search term; filters and context are not applied.',
-            'parameters' => [
-                ['name' => 'UCP-Agent', 'in' => 'header', 'required' => false, 'schema' => ['type' => 'string']],
-            ],
-            'requestBody' => [
-                'required' => true,
-                'content' => ['application/json' => ['schema' => [
-                    'type' => 'object',
-                    'required' => ['query'],
-                    'properties' => [
-                        'query' => ['type' => 'string', 'minLength' => 1],
-                        'pagination' => ['type' => 'object', 'properties' => [
-                            'cursor' => ['type' => 'string'],
-                            'limit' => ['type' => 'integer', 'minimum' => 1, 'default' => 10],
-                        ]],
-                    ],
-                ]]],
-            ],
-            'responses' => [
-                '200' => ['description' => 'Matching products, one page.', 'content' => ['application/json' => ['schema' => $envelope]]],
-                '400' => ['description' => 'Malformed JSON, no query, or an invalid cursor or limit.', 'content' => ['application/json' => ['schema' => $envelope]]],
-            ],
-        ]], $this->document()['paths']['/catalog/search']);
+        self::assertSame(['/catalog/search', '/catalog/lookup', '/catalog/product'], array_keys($paths));
+        self::assertSame(
+            ['search_catalog', 'lookup_catalog', 'get_product'],
+            array_map(static fn (array $path): string => $path['post']['operationId'], array_values($paths)),
+        );
     }
 
-    public function testTheEnvelopeAndHeaderAreUcp20260825(): void
+    /** Bodies are the official schemas of the declared version. */
+    public function testBodiesReferenceTheOfficialSchemas(): void
+    {
+        $search = $this->document()['paths']['/catalog/search']['post'];
+
+        self::assertSame(
+            ['$ref' => 'https://ucp.dev/2026-08-25/schemas/shopping/catalog_search.json#/$defs/search_request'],
+            $search['requestBody']['content']['application/json']['schema'],
+        );
+        self::assertSame(
+            [['$ref' => 'https://ucp.dev/2026-08-25/schemas/shopping/catalog_search.json#/$defs/search_response'], ['$ref' => '#/components/schemas/error_response']],
+            $search['responses']['200']['content']['application/json']['schema']['oneOf'],
+        );
+        self::assertSame(['200', '400', '422', '424', '503'], array_map('strval', array_keys($search['responses'])));
+        self::assertStringContainsString('At most 50 products per page and 200 per search', $search['description']);
+    }
+
+    /** UCP-Agent is required on every operation: negotiation is a MUST. */
+    public function testUcpAgentIsRequired(): void
+    {
+        $doc = $this->document();
+
+        foreach ($doc['paths'] as $path) {
+            self::assertContains(['$ref' => '#/components/parameters/ucp_agent'], $path['post']['parameters']);
+        }
+        self::assertTrue($doc['components']['parameters']['ucp_agent']['required']);
+        self::assertSame('UCP-Agent', $doc['components']['parameters']['ucp_agent']['name']);
+    }
+
+    public function testTheDocumentNamesVersionAndServer(): void
     {
         $doc = $this->document();
 
         self::assertSame('3.1.0', $doc['openapi']);
-        self::assertSame(['title' => 'UCP shopping service', 'version' => '2026-08-25'], $doc['info']);
+        self::assertSame('2026-08-25', $doc['info']['version']);
         self::assertSame([['url' => 'https://shop.example.com/ucp/v1']], $doc['servers']);
-        self::assertSame(['schemas' => ['UcpEnvelope' => [
-            'type' => 'object',
-            'required' => ['ucp'],
-            'properties' => ['ucp' => [
-                'type' => 'object',
-                'properties' => [
-                    'version' => ['type' => 'string'],
-                    'status' => ['type' => 'string', 'enum' => ['success', 'error']],
-                    'capabilities' => ['type' => 'object'],
-                ],
-            ]],
-            'additionalProperties' => true,
-        ]]], $doc['components']);
-    }
-
-    public function testCheckoutIsDocumentedOnlyWhenSwitchedOn(): void
-    {
-        self::assertSame(['/catalog/search'], array_keys($this->document()['paths']));
-        self::assertSame(['/catalog/search', '/checkout-sessions'], array_keys($this->document(checkout: true)['paths']));
+        self::assertSame(['$ref' => 'https://ucp.dev/2026-08-25/schemas/common/types/error_response.json'], $doc['components']['schemas']['error_response']);
+        self::assertSame(
+            ['invalid_profile_url', 'profile_unreachable', 'profile_malformed', 'version_unsupported'],
+            $doc['components']['schemas']['transport_error']['properties']['code']['enum'],
+        );
     }
 
     /** @return array<string, mixed> */
-    private function document(bool $checkout = false): array
+    private function document(): array
     {
         $channel = self::createStub(ChannelInterface::class);
         $factory = self::createStub(AgentContextFactoryInterface::class);
         $factory->method('create')->willReturn(new AgentContext($channel, 'https://shop.example.com', 'de_DE', ['de_DE']));
 
-        $response = (new OpenApiController($factory, new AgentJsonResponder(), checkoutEnabled: $checkout))(new Request());
+        $response = (new OpenApiController($factory, new AgentJsonResponder()))(new Request());
 
         /** @var array<string, mixed> $decoded */
         $decoded = json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
