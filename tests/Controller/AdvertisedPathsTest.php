@@ -11,7 +11,8 @@ use Koh\SyliusAgentContracts\Context\AgentContext;
 use Koh\SyliusAgentContracts\Context\AgentContextFactoryInterface;
 use Koh\SyliusAgentContracts\Http\AgentJsonResponder;
 use Koh\SyliusUcp\Controller\CatalogSearchController;
-use Koh\SyliusUcp\Controller\CheckoutSessionController;
+use Koh\SyliusUcp\Controller\CatalogLookupController;
+use Koh\SyliusUcp\Controller\PermalinkController;
 use Koh\SyliusUcp\Controller\OpenApiController;
 use Koh\SyliusUcp\Controller\UcpProfileController;
 use PHPUnit\Framework\TestCase;
@@ -23,20 +24,18 @@ use Symfony\Component\Routing\Attribute\Route;
  * Every URL the profile and the OpenAPI document advertise on the shop must be
  * a route this bundle serves. The profile once said `checkout_sessions` while
  * the route was `checkout-sessions`, and pointed at an openapi.json nobody served.
+ * Catalog lookup needs both of its REST paths, and the permalink endpoint both
+ * its bare and its item form.
  */
 final class AdvertisedPathsTest extends TestCase
 {
     private const ORIGIN = 'https://shop.example.com';
 
     /** REST paths of the UCP 2026-08-25 REST binding, relative to the service endpoint. */
-    private const SPEC_PATHS = ['dev.ucp.shopping.catalog.search' => '/catalog/search'];
-
-    /** @return iterable<string, array{bool}> */
-    public static function checkoutSwitch(): iterable
-    {
-        yield 'checkout off' => [false];
-        yield 'checkout on' => [true];
-    }
+    private const SPEC_PATHS = [
+        'dev.ucp.shopping.catalog.search' => ['/catalog/search'],
+        'dev.ucp.shopping.catalog.lookup' => ['/catalog/lookup', '/catalog/product'],
+    ];
 
     /**
      * Endpoints the profile names on this shop are routes; every capability
@@ -48,8 +47,14 @@ final class AdvertisedPathsTest extends TestCase
 
         $endpoint = $profile['ucp']['services']['dev.ucp.shopping'][0]['endpoint'];
         $urls = array_values($profile['endpoints']);
-        foreach (array_keys($profile['ucp']['capabilities']) as $capability) {
-            $urls[] = $endpoint.self::SPEC_PATHS[$capability];
+        foreach ($profile['ucp']['capabilities'] as $capability => $entries) {
+            foreach (self::SPEC_PATHS[$capability] ?? [] as $path) {
+                $urls[] = $endpoint.$path;
+            }
+            if (isset($entries[0]['config']['endpoint'])) {
+                $urls[] = $entries[0]['config']['endpoint'];
+                $urls[] = $entries[0]['config']['endpoint'].'/{items}';
+            }
         }
 
         foreach (array_unique($urls) as $url) {
@@ -58,24 +63,22 @@ final class AdvertisedPathsTest extends TestCase
         }
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('checkoutSwitch')]
-    public function testEveryOpenApiPathIsARoute(bool $checkout): void
+    public function testEveryOpenApiPathIsARoute(): void
     {
-        $doc = $this->decode((new OpenApiController($this->factory(), new AgentJsonResponder(), checkoutEnabled: $checkout))(new Request()));
+        $doc = $this->decode((new OpenApiController($this->factory(), new AgentJsonResponder()))(new Request()));
 
         self::assertSame('3.1.0', $doc['openapi']);
         $base = substr($doc['servers'][0]['url'], \strlen(self::ORIGIN));
         foreach (array_keys($doc['paths']) as $path) {
             self::assertContains($base.$path, $this->routePaths(), $path.' is documented but not routed');
         }
-        self::assertSame($checkout, isset($doc['paths']['/checkout-sessions']));
     }
 
     /** @return list<string> */
     private function routePaths(): array
     {
         $paths = [];
-        foreach ([CatalogSearchController::class, CheckoutSessionController::class, OpenApiController::class, UcpProfileController::class] as $class) {
+        foreach ([CatalogSearchController::class, CatalogLookupController::class, PermalinkController::class, OpenApiController::class, UcpProfileController::class] as $class) {
             foreach ((new \ReflectionClass($class))->getMethods() as $method) {
                 foreach ($method->getAttributes(Route::class) as $attribute) {
                     $paths[] = (string) $attribute->newInstance()->getPath();

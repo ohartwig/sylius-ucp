@@ -9,9 +9,16 @@ namespace Koh\SyliusUcp\Tests\Controller;
 
 use Koh\SyliusAgentContracts\Context\AgentContext;
 use Koh\SyliusAgentContracts\Context\AgentContextFactoryInterface;
+use Koh\SyliusUcp\Catalog\AgeRestriction;
+use Koh\SyliusUcp\Catalog\CatalogFilter;
 use Koh\SyliusUcp\Catalog\CatalogProductSource;
 use Koh\SyliusUcp\Catalog\UcpProductMapper;
 use Koh\SyliusUcp\Controller\CatalogSearchController;
+use Koh\SyliusUcp\Negotiation\Negotiator;
+use Koh\SyliusUcp\Tests\Support\Platform;
+use Koh\SyliusUcp\Catalog\CatalogRequest;
+use Koh\SyliusUcp\Http\UcpResponses;
+use Koh\SyliusUcp\Exception\InvalidUcpRequestException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -30,12 +37,23 @@ use Symfony\Component\HttpFoundation\Request;
  * term is required, a page is capped, and paging stops at MAX_RESULTS.
  */
 #[CoversClass(CatalogSearchController::class)]
+#[CoversClass(CatalogRequest::class)]
+#[CoversClass(CatalogFilter::class)]
+#[CoversClass(AgeRestriction::class)]
+#[CoversClass(UcpResponses::class)]
+#[CoversClass(InvalidUcpRequestException::class)]
 final class CatalogSearchControllerTest extends TestCase
 {
     /** @var list<array{string, int, int}> term, offset, limit of each source call */
     private array $calls = [];
 
     private int $available = 1000;
+
+    /** @var list<?CatalogFilter> */
+    private array $filters = [];
+
+    /** @var list<string> */
+    private array $locales = [];
 
     public function testASearchAnswersTheUcpSearchResponse(): void
     {
@@ -155,15 +173,95 @@ final class CatalogSearchControllerTest extends TestCase
         self::assertSame(['P-0'], array_column($body['products'], 'id'));
     }
 
-    public function testUnsupportedInputsAreReportedNotSilentlyIgnored(): void
+    public function testFiltersReachTheSourceAndUnknownOnesAreReported(): void
     {
-        $body = $this->search(['query' => 'a', 'filters' => ['categories' => ['x']], 'context' => ['address_country' => 'DE']]);
+        $body = $this->search(['query' => 'a', 'filters' => ['categories' => ['cigars', 'cigars'], 'price' => ['max' => 1000], 'brand' => 'x'], 'context' => ['currency' => 'eur']]);
+
+        self::assertSame(['cigars'], $this->filters[0]?->categories);
+        self::assertNull($this->filters[0]?->minPrice);
+        self::assertSame(1000, $this->filters[0]?->maxPrice);
+        self::assertSame([[
+            'type' => 'warning',
+            'code' => 'unsupported_filter',
+            'content' => 'Not supported by this shop and ignored: brand.',
+            'path' => '$.filters',
+        ]], $body['messages']);
+    }
+
+    /** A filter alone is a browse request: no term, but not the whole channel by accident. */
+    public function testAFilterWithoutQueryBrowses(): void
+    {
+        $this->search(['filters' => ['categories' => ['cigars']]]);
+
+        self::assertSame(['', 0, 11], $this->calls[0]);
+    }
+
+    public function testAPriceInAnotherCurrencyIsIgnoredAndSaid(): void
+    {
+        $body = $this->search(['query' => 'a', 'filters' => ['price' => ['min' => 5]], 'context' => ['currency' => 'USD']]);
+
+        self::assertTrue($this->filters[0]?->isEmpty());
+        self::assertSame('price_filter_ignored', $body['messages'][0]['code']);
+    }
+
+    public function testAPriceWithoutCurrencyIsAppliedInTheShopCurrencyAndSaid(): void
+    {
+        $body = $this->search(['query' => 'a', 'filters' => ['price' => ['min' => 5]]]);
+
+        self::assertSame(5, $this->filters[0]?->minPrice);
+        self::assertSame(['type' => 'info', 'code' => 'price_filter_currency', 'content' => 'context.currency was not given; the price filter was applied in EUR.', 'path' => '$.filters.price'], $body['messages'][0]);
+    }
+
+    public function testTheContentLanguageFollowsContextThenAcceptLanguage(): void
+    {
+        $this->search(['query' => 'a', 'context' => ['language' => 'en-GB']]);
+        $request = Platform::post('/ucp/v1/catalog/search', ['query' => 'a']);
+        $request->headers->set('Accept-Language', 'fr;q=0.9, en;q=0.8');
+        ($this->controller())($request);
+        $this->search(['query' => 'a', 'context' => ['language' => 'it']]);
+
+        self::assertSame(['en_GB', 'en_GB', 'de_DE'], $this->locales);
+    }
+
+    public function testAgeRestrictedShopsDiscloseItNextToTheProducts(): void
+    {
+        $this->available = 1;
+        $body = $this->decode($this->controller(age: 18)($this->post(['query' => 'a'])));
 
         self::assertSame([[
             'type' => 'warning',
-            'code' => 'unsupported_input',
-            'content' => 'Not supported by this shop and ignored: filters, context.',
+            'code' => 'age_restricted',
+            'path' => '$.products',
+            'presentation' => 'disclosure',
+            'content' => 'Age-restricted goods: sold only to buyers aged 18 or over. The shop confirms the buyer\'s age before anything goes into the cart; an agent cannot buy on the buyer\'s behalf.',
         ]], $body['messages']);
+    }
+
+    public function testNoDisclosureWithoutProducts(): void
+    {
+        $this->available = 0;
+        $body = $this->decode($this->controller(age: 18)($this->post(['query' => 'a'])));
+
+        self::assertArrayNotHasKey('messages', $body);
+    }
+
+    public function testWithoutANegotiatedProfileNothingIsSearched(): void
+    {
+        $response = $this->controller()(Platform::post('/ucp/v1/catalog/search', ['query' => 'a'], null));
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame('invalid_profile_url', $this->decode($response)['code']);
+        self::assertSame([], $this->calls);
+    }
+
+    public function testAPlatformWithoutSearchGetsCapabilitiesIncompatible(): void
+    {
+        $controller = $this->controller(negotiator: Platform::negotiator(Platform::profile(['dev.ucp.shopping.catalog.lookup'])));
+        $response = $controller($this->post(['query' => 'a']));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('capabilities_incompatible', $this->decode($response)['messages'][0]['code']);
+        self::assertSame([], $this->calls);
     }
 
     public function testTheTermIsTrimmedAndCut(): void
@@ -175,22 +273,31 @@ final class CatalogSearchControllerTest extends TestCase
         self::assertSame(str_repeat('ä', 100), $this->calls[1][0]);
     }
 
-    public function testASingleUnsupportedInputIsNamed(): void
+    public function testResponsesAreNotStored(): void
     {
-        $body = $this->search(['query' => 'a', 'context' => ['address_country' => 'DE']]);
+        $response = $this->controller()($this->post(['query' => 'a']));
 
-        self::assertSame('Not supported by this shop and ignored: context.', $body['messages'][0]['content']);
-        self::assertSame([0], array_keys($body['messages']));
+        self::assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
     }
 
-    /** @return iterable<string, array{string, ?string}> */
+    /** @return iterable<string, array{string, string}> */
     public static function badRequests(): iterable
     {
-        yield 'no body' => ['', null];
-        yield 'not JSON' => ['{', null];
-        yield 'not an object' => ['"robusto"', null];
-        yield 'a list' => ['["robusto"]', null];
-        yield 'no query' => ['{}', '$.query'];
+        yield 'no body' => ['', '$'];
+        yield 'not JSON' => ['{', '$'];
+        yield 'not an object' => ['"robusto"', '$'];
+        yield 'a list' => ['["robusto"]', '$'];
+        yield 'no query and no filter' => ['{}', '$.query'];
+        yield 'too large' => ['{"query": "'.str_repeat('a', 70000).'"}', '$'];
+        yield 'filters not an object' => ['{"query": "a", "filters": ["x"]}', '$.filters'];
+        yield 'categories not a list' => ['{"query": "a", "filters": {"categories": "x"}}', '$.filters.categories'];
+        yield 'category not a string' => ['{"query": "a", "filters": {"categories": [5]}}', '$.filters.categories[0]'];
+        yield 'too many categories' => ['{"query": "a", "filters": {"categories": ['.implode(',', array_map(static fn (int $i): string => '"c'.$i.'"', range(1, 21))).']}}', '$.filters.categories'];
+        yield 'price not an object' => ['{"query": "a", "filters": {"price": 5}}', '$.filters.price'];
+        yield 'negative price' => ['{"query": "a", "filters": {"price": {"min": -1}}}', '$.filters.price.min'];
+        yield 'price not an integer' => ['{"query": "a", "filters": {"price": {"max": 9.5}}}', '$.filters.price.max'];
+        yield 'context not an object' => ['{"query": "a", "context": "de"}', '$.context'];
+        yield 'pagination not an object' => ['{"query": "a", "pagination": 5}', '$.pagination'];
         yield 'empty query' => ['{"query": "   "}', '$.query'];
         yield 'query not a string' => ['{"query": 5}', '$.query'];
         yield 'limit zero' => ['{"query": "a", "pagination": {"limit": 0}}', '$.pagination.limit'];
@@ -205,9 +312,9 @@ final class CatalogSearchControllerTest extends TestCase
 
     /** Malformed requests answer 400 with the UCP error response, and the catalogue is not touched. */
     #[DataProvider('badRequests')]
-    public function testMalformedRequestsAreRefused(string $content, ?string $path): void
+    public function testMalformedRequestsAreRefused(string $content, string $path): void
     {
-        $response = $this->controller()(Request::create('/ucp/v1/catalog/search', 'POST', content: $content));
+        $response = $this->controller()(Platform::post('/ucp/v1/catalog/search', $content));
         $body = $this->decode($response);
 
         self::assertSame(400, $response->getStatusCode());
@@ -222,11 +329,7 @@ final class CatalogSearchControllerTest extends TestCase
         self::assertSame('invalid_request', $body['messages'][0]['code']);
         self::assertSame('unrecoverable', $body['messages'][0]['severity']);
         self::assertNotSame('', $body['messages'][0]['content']);
-        if (null === $path) {
-            self::assertArrayNotHasKey('path', $body['messages'][0]);
-        } else {
-            self::assertSame($path, $body['messages'][0]['path']);
-        }
+        self::assertSame($path, $body['messages'][0]['path']);
         self::assertSame([], $this->calls);
     }
 
@@ -246,7 +349,7 @@ final class CatalogSearchControllerTest extends TestCase
     /** @param array<string, mixed> $body */
     private function post(array $body): Request
     {
-        return Request::create('/ucp/v1/catalog/search', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode($body, \JSON_THROW_ON_ERROR));
+        return Platform::post('/ucp/v1/catalog/search', $body);
     }
 
     /** @return array<string, mixed> */
@@ -258,7 +361,7 @@ final class CatalogSearchControllerTest extends TestCase
         return $decoded;
     }
 
-    private function controller(int $unpricedFrom = \PHP_INT_MAX): CatalogSearchController
+    private function controller(int $unpricedFrom = \PHP_INT_MAX, ?int $age = null, ?Negotiator $negotiator = null): CatalogSearchController
     {
         $currency = new Currency();
         $currency->setCode('EUR');
@@ -267,12 +370,14 @@ final class CatalogSearchControllerTest extends TestCase
         $channel->setBaseCurrency($currency);
 
         $factory = self::createStub(AgentContextFactoryInterface::class);
-        $factory->method('create')->willReturn(new AgentContext($channel, 'https://shop.example.com', 'de_DE', ['de_DE']));
+        $factory->method('create')->willReturn(new AgentContext($channel, 'https://shop.example.com', 'de_DE', ['de_DE', 'en_GB']));
 
         $source = self::createStub(CatalogProductSource::class);
         $source->method('search')->willReturnCallback(
-            function (ChannelInterface $c, string $locale, string $term, int $offset, int $limit) use ($channel, $unpricedFrom): array {
+            function (ChannelInterface $c, string $locale, string $term, int $offset, int $limit, ?CatalogFilter $filter = null) use ($channel, $unpricedFrom): array {
                 $this->calls[] = [$term, $offset, $limit];
+                $this->filters[] = $filter;
+                $this->locales[] = $locale;
                 $products = [];
                 for ($i = $offset; $i < min($offset + $limit, $this->available); ++$i) {
                     $products[] = $this->product($channel, $i, $i < $unpricedFrom);
@@ -282,7 +387,7 @@ final class CatalogSearchControllerTest extends TestCase
             },
         );
 
-        return new CatalogSearchController($factory, $source, new UcpProductMapper());
+        return new CatalogSearchController($factory, $source, new UcpProductMapper(), $negotiator ?? Platform::negotiator(), new AgeRestriction($age));
     }
 
     private function product(Channel $channel, int $i, bool $priced): Product

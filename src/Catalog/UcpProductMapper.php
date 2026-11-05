@@ -17,10 +17,14 @@ use Sylius\Component\Core\Model\ProductVariantInterface;
  * The type requires a price on every variant and at least one variant per
  * product. A variant without a price in the channel cannot be bought there, so
  * it is left out; a product left without variants is left out as a whole
- * (null) rather than shipped in a shape the schema rejects.
+ * (null) rather than shipped in a shape the schema rejects. A price filter
+ * drops the variants outside its range the same way.
  *
- * Variant ids are Sylius variant codes: the value checkout takes as
- * `line_items[].item.id`.
+ * Ids are Sylius codes: the product code for the product, the variant code for
+ * the variant — the value the permalink takes as its item id. Categories are
+ * the product's taxon codes, the values `filters.categories` matches. Options
+ * are the product's option axes with the values its variants use; each
+ * variant names its own.
  */
 final class UcpProductMapper
 {
@@ -28,14 +32,15 @@ final class UcpProductMapper
     private const MAX_DESCRIPTION_LENGTH = 500;
 
     /** @return array<string, mixed>|null */
-    public function map(ProductInterface $product, AgentContext $context): ?array
+    public function map(ProductInterface $product, AgentContext $context, ?string $localeCode = null, ?CatalogFilter $filter = null): ?array
     {
         $currency = $context->channel->getBaseCurrency()?->getCode();
         if (null === $currency || '' === $currency) {
             return null;
         }
+        $locale = $localeCode ?? $context->localeCode;
 
-        $translation = $product->getTranslation($context->localeCode);
+        $translation = $product->getTranslation($locale);
         $code = (string) $product->getCode();
         $title = $this->text($translation->getName()) ?? $code;
         $description = ['plain' => $this->plain($translation->getShortDescription())
@@ -49,21 +54,26 @@ final class UcpProductMapper
                 continue;
             }
             $amount = $variant->getChannelPricingForChannel($context->channel)?->getPrice();
-            if (null === $amount || $amount < 0) {
+            if (null === $amount || $amount < 0 || (null !== $filter && !$filter->acceptsPrice($amount))) {
                 continue;
             }
 
             $amounts[] = $amount;
-            $variants[] = [
+            $mapped = [
                 'id' => (string) $variant->getCode(),
                 'sku' => (string) $variant->getCode(),
-                'title' => $this->text($variant->getTranslation($context->localeCode)->getName()) ?? $title,
+                'title' => $this->text($variant->getTranslation($locale)->getName()) ?? $title,
                 'description' => $description,
                 'price' => ['amount' => $amount, 'currency' => $currency],
                 'availability' => $variant->isInStock()
                     ? ['available' => true, 'status' => 'in_stock']
                     : ['available' => false, 'status' => 'out_of_stock'],
             ];
+            $options = $this->variantOptions($variant, $locale);
+            if ([] !== $options) {
+                $mapped['options'] = $options;
+            }
+            $variants[] = $mapped;
         }
 
         if ([] === $amounts) {
@@ -84,10 +94,77 @@ final class UcpProductMapper
         $slug = $this->text($translation->getSlug());
         if (null !== $slug) {
             $mapped['handle'] = $slug;
-            $mapped['url'] = $context->url($context->localeCode.'/products/'.rawurlencode($slug));
+            $mapped['url'] = $context->url($locale.'/products/'.rawurlencode($slug));
+        }
+
+        $categories = $this->categories($product);
+        if ([] !== $categories) {
+            $mapped['categories'] = $categories;
+        }
+
+        $options = $this->productOptions($variants);
+        if ([] !== $options) {
+            $mapped['options'] = $options;
         }
 
         return $mapped;
+    }
+
+    /** @return list<array{value: string, taxonomy: string}> */
+    private function categories(ProductInterface $product): array
+    {
+        $categories = [];
+        foreach ($product->getTaxons() as $taxon) {
+            $code = $this->text($taxon->getCode());
+            if (null !== $code) {
+                $categories[$code] = ['value' => $code, 'taxonomy' => 'merchant'];
+            }
+        }
+
+        return array_values($categories);
+    }
+
+    /** @return list<array{name: string, id: string, label: string}> */
+    private function variantOptions(ProductVariantInterface $variant, string $locale): array
+    {
+        $options = [];
+        foreach ($variant->getOptionValues() as $value) {
+            $option = $value->getOption();
+            $name = null === $option ? null : ($this->text($option->getTranslation($locale)->getName()) ?? $this->text($option->getCode()));
+            $label = $this->text($value->getTranslation($locale)->getValue()) ?? $this->text($value->getCode());
+            if (null !== $name && null !== $label) {
+                $options[] = ['name' => $name, 'id' => (string) $value->getCode(), 'label' => $label];
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * The option axes as the mapped variants use them, values in first-seen
+     * order.
+     *
+     * @param list<array<string, mixed>> $variants
+     *
+     * @return list<array{name: string, values: list<array{id: string, label: string}>}>
+     */
+    private function productOptions(array $variants): array
+    {
+        $options = [];
+        foreach ($variants as $variant) {
+            /** @var list<array{name: string, id: string, label: string}> $selected */
+            $selected = $variant['options'] ?? [];
+            foreach ($selected as $option) {
+                $options[$option['name']][$option['id']] = ['id' => $option['id'], 'label' => $option['label']];
+            }
+        }
+
+        $list = [];
+        foreach ($options as $name => $values) {
+            $list[] = ['name' => $name, 'values' => array_values($values)];
+        }
+
+        return $list;
     }
 
     private function text(?string $text): ?string

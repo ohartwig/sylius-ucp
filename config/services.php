@@ -5,11 +5,25 @@
 
 declare(strict_types=1);
 
+use Koh\SyliusUcp\Agent\UcpEndpointProvider;
+use Koh\SyliusUcp\Catalog\AgeRestriction;
+use Koh\SyliusUcp\Catalog\CatalogProductSource;
+use Koh\SyliusUcp\Catalog\DoctrineCatalogProductSource;
+use Koh\SyliusUcp\Controller\CatalogLookupController;
+use Koh\SyliusUcp\Controller\CatalogSearchController;
+use Koh\SyliusUcp\Controller\OpenApiController;
+use Koh\SyliusUcp\Controller\PermalinkController;
+use Koh\SyliusUcp\Controller\UcpProfileController;
+use Koh\SyliusUcp\Negotiation\HostResolver;
+use Koh\SyliusUcp\Negotiation\Negotiator;
+use Koh\SyliusUcp\Negotiation\PlatformProfileFetcher;
+use Koh\SyliusUcp\Negotiation\SystemHostResolver;
+use Koh\SyliusUcp\Permalink\PurchasableItemResolver;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
-
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\RateLimiter\Storage\CacheStorage;
 
+use function Symfony\Component\DependencyInjection\Loader\Configurator\param;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 
 return static function (ContainerConfigurator $container): void {
@@ -18,48 +32,84 @@ return static function (ContainerConfigurator $container): void {
         ->autowire()
         ->autoconfigure();
 
-    $services->load('Koh\\SyliusUcp\\', __DIR__ . '/../src/')
-        ->exclude(__DIR__ . '/../src/Exception/');
-
-    // Rate limiter for anonymous checkout sessions (AUD-034-F01), keyed by the
-    // client address the installation's trusted_proxies yields.
-    $services->set('koh_sylius_ucp.checkout_limiter.storage', CacheStorage::class)
-        ->args([service('cache.app')]);
-    $services->set('koh_sylius_ucp.checkout_limiter', RateLimiterFactory::class)
-        ->args([
-            [
-                'id' => 'koh_sylius_ucp_checkout',
-                'policy' => 'sliding_window',
-                'limit' => '%koh_sylius_ucp.checkout_limit%',
-                'interval' => '%koh_sylius_ucp.checkout_interval%',
-            ],
-            service('koh_sylius_ucp.checkout_limiter.storage'),
+    $services->load('Koh\\SyliusUcp\\', __DIR__.'/../src/')
+        ->exclude([
+            __DIR__.'/../src/Exception/',
+            __DIR__.'/../src/KohSyliusUcpBundle.php',
+            // Value objects and static helpers, not services.
+            __DIR__.'/../src/Catalog/CatalogFilter.php',
+            __DIR__.'/../src/Catalog/CatalogRequest.php',
+            __DIR__.'/../src/Catalog/ProductDetail.php',
+            __DIR__.'/../src/Http/',
+            __DIR__.'/../src/Negotiation/PlatformProfile.php',
+            __DIR__.'/../src/Negotiation/ProfileFetchError.php',
+            __DIR__.'/../src/Negotiation/PublicAddress.php',
+            __DIR__.'/../src/Negotiation/UcpAgentHeader.php',
+            __DIR__.'/../src/Permalink/PermalinkRequest.php',
         ]);
 
-    // CartContextInterface + OrderTokenAssignerInterface autowire from Sylius;
-    // the order ObjectManager is ambiguous, so bind the Sylius order manager.
-    $services->get(\Koh\SyliusUcp\Service\CheckoutSessionCreator::class)
-        ->arg('$orderManager', service('sylius.manager.order'))
-        ->arg('$variantRepository', service('sylius.repository.product_variant'))
-        ->arg('$orderItemFactory', service('sylius.factory.order_item'));
+    $services->set(AgeRestriction::class)
+        ->args([param('koh_sylius_ucp.age_restriction')]);
 
-    $services->get(\Koh\SyliusUcp\Controller\UcpProfileController::class)
-        ->arg('$version', '%koh_sylius_ucp.version%')
-        ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%');
-    $services->get(\Koh\SyliusUcp\Controller\CatalogSearchController::class)
-        ->arg('$version', '%koh_sylius_ucp.version%');
-    $services->set(\Koh\SyliusUcp\Catalog\DoctrineCatalogProductSource::class)
+    // Platform profile discovery: a global budget of uncached fetches shared by
+    // every worker, and the cache the profiles are kept in.
+    $services->set('koh_sylius_ucp.profile_fetch_limiter.storage', CacheStorage::class)
+        ->args([service('cache.app')]);
+    $services->set('koh_sylius_ucp.profile_fetch_limiter', RateLimiterFactory::class)
+        ->args([
+            [
+                'id' => 'koh_sylius_ucp_profile_fetch',
+                'policy' => 'fixed_window',
+                'limit' => param('koh_sylius_ucp.profile_fetch_limit'),
+                'interval' => param('koh_sylius_ucp.profile_fetch_interval'),
+            ],
+            service('koh_sylius_ucp.profile_fetch_limiter.storage'),
+        ]);
+    $services->alias(HostResolver::class, SystemHostResolver::class);
+    $services->set(PlatformProfileFetcher::class)
+        ->args([
+            service(HostResolver::class),
+            service('cache.app'),
+            service('koh_sylius_ucp.profile_fetch_limiter'),
+        ]);
+    $services->set(Negotiator::class)
+        ->args([service(PlatformProfileFetcher::class), param('koh_sylius_ucp.version')]);
+
+    $services->set(DoctrineCatalogProductSource::class)
         ->args([service('sylius.repository.product')]);
-    $services->alias(\Koh\SyliusUcp\Catalog\CatalogProductSource::class, \Koh\SyliusUcp\Catalog\DoctrineCatalogProductSource::class);
-    $services->get(\Koh\SyliusUcp\Controller\OpenApiController::class)
-        ->arg('$version', '%koh_sylius_ucp.version%')
-        ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%')
-        ->arg('$checkoutEnabled', '%koh_sylius_ucp.checkout%');
-    $services->get(\Koh\SyliusUcp\Controller\CheckoutSessionController::class)
-        ->arg('$version', '%koh_sylius_ucp.version%')
-        ->arg('$checkoutEnabled', '%koh_sylius_ucp.checkout%')
-        ->arg('$checkoutLimiter', service('koh_sylius_ucp.checkout_limiter'));
+    $services->alias(CatalogProductSource::class, DoctrineCatalogProductSource::class);
 
-    $services->get(\Koh\SyliusUcp\Agent\UcpEndpointProvider::class)
-        ->arg('$endpointBase', '%koh_sylius_ucp.endpoint_base%');
+    $services->get(CatalogSearchController::class)
+        ->arg('$version', param('koh_sylius_ucp.version'));
+    $services->get(CatalogLookupController::class)
+        ->arg('$version', param('koh_sylius_ucp.version'));
+
+    $services->set(PurchasableItemResolver::class)
+        ->args([service('sylius.repository.product_variant'), service('sylius.repository.product')]);
+    $services->get(PermalinkController::class)
+        ->args([
+            service('Koh\\SyliusAgentContracts\\Context\\AgentContextFactoryInterface'),
+            service(PurchasableItemResolver::class),
+            service('sylius.context.cart'),
+            service('sylius.factory.order_item'),
+            service('sylius.modifier.order_item_quantity'),
+            service('sylius.factory.add_to_cart_command'),
+            service('event_dispatcher'),
+            service('sylius.manager.order'),
+            service('router'),
+            param('koh_sylius_ucp.permalink.enabled'),
+            param('koh_sylius_ucp.permalink.cart_route'),
+            param('koh_sylius_ucp.permalink.fallback_route'),
+        ]);
+
+    $services->get(UcpProfileController::class)
+        ->arg('$version', param('koh_sylius_ucp.version'))
+        ->arg('$endpointBase', param('koh_sylius_ucp.endpoint_base'))
+        ->arg('$permalinkEnabled', param('koh_sylius_ucp.permalink.enabled'));
+    $services->get(OpenApiController::class)
+        ->arg('$version', param('koh_sylius_ucp.version'))
+        ->arg('$endpointBase', param('koh_sylius_ucp.endpoint_base'));
+
+    $services->get(UcpEndpointProvider::class)
+        ->arg('$endpointBase', param('koh_sylius_ucp.endpoint_base'));
 };

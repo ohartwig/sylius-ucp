@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Kai Ole Hartwig
+# SPDX-License-Identifier: MIT
+koh_ucp:
+    permalink:
+        added: 'Die von Ihrem Assistenten ausgewählten Artikel liegen jetzt in Ihrem Warenkorb.'
+        capped: 'Die von Ihrem Assistenten ausgewählten Artikel liegen jetzt in Ihrem Warenkorb; Mengen über 99 wurden auf 99 begrenzt.'
+        partial: 'Ein Teil der von Ihrem Assistenten ausgewählten Artikel liegt jetzt in Ihrem Warenkorb; die übrigen sind in diesem Shop derzeit nicht erhältlich.'
+        unavailable: 'Die Artikel aus diesem Link sind in diesem Shop derzeit nicht erhältlich.'
+        blocked: 'Die Artikel konnten noch nicht hinzugefügt werden. Bitte folgen Sie dem Hinweis des Shops (zum Beispiel der Altersbestätigung) und öffnen Sie den Link danach erneut.'
+        invalid: 'Dieser Einkaufslink ist ungültig.'

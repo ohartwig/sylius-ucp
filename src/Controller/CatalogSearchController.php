@@ -8,8 +8,13 @@ declare(strict_types=1);
 namespace Koh\SyliusUcp\Controller;
 
 use Koh\SyliusAgentContracts\Context\AgentContextFactoryInterface;
+use Koh\SyliusUcp\Catalog\AgeRestriction;
 use Koh\SyliusUcp\Catalog\CatalogProductSource;
+use Koh\SyliusUcp\Catalog\CatalogRequest;
 use Koh\SyliusUcp\Catalog\UcpProductMapper;
+use Koh\SyliusUcp\Exception\InvalidUcpRequestException;
+use Koh\SyliusUcp\Http\UcpResponses;
+use Koh\SyliusUcp\Negotiation\Negotiator;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
@@ -18,13 +23,13 @@ use Symfony\Component\Routing\Attribute\Route;
  * `POST /catalog/search` of the UCP REST binding (capability
  * `dev.ucp.shopping.catalog.search`).
  *
- * The route needs no credentials, so every bound comes from here: a search term
- * is required, a page holds at most MAX_LIMIT products, and the cursor cannot
- * reach past MAX_RESULTS — a broad term pages through a window, not the whole
- * catalogue.
+ * Negotiation runs first: without a usable platform profile that shares the
+ * capability, nothing is searched.
  *
- * `filters` and `context` are accepted and not applied; the response says so in
- * a warning instead of pretending the result was filtered.
+ * The route needs no credentials, so every bound comes from here: a search
+ * needs a term or a filter, a page holds at most MAX_LIMIT products, and the
+ * cursor cannot reach past MAX_RESULTS — a broad request pages through a
+ * window, not the whole catalogue.
  */
 final class CatalogSearchController
 {
@@ -35,7 +40,7 @@ final class CatalogSearchController
 
     public const MAX_LIMIT = 50;
 
-    /** Products reachable by paging through one search term. */
+    /** Products reachable by paging through one search. */
     public const MAX_RESULTS = 200;
 
     /** Longer terms are cut: a name search is not a place for paragraphs. */
@@ -45,6 +50,8 @@ final class CatalogSearchController
         private readonly AgentContextFactoryInterface $contextFactory,
         private readonly CatalogProductSource $products,
         private readonly UcpProductMapper $mapper,
+        private readonly Negotiator $negotiator,
+        private readonly AgeRestriction $ageRestriction = new AgeRestriction(),
         private readonly string $version = '2026-08-25',
     ) {
     }
@@ -52,46 +59,58 @@ final class CatalogSearchController
     #[Route('/ucp/v1/catalog/search', name: 'koh_ucp_catalog_search', methods: ['POST'])]
     public function __invoke(Request $request): JsonResponse
     {
+        $context = $this->contextFactory->create();
+        $storefront = $context->url('/');
+
+        $refused = $this->negotiator->negotiate($request, self::CAPABILITY, $storefront);
+        if (null !== $refused) {
+            return $refused;
+        }
+
         try {
-            $body = json_decode($request->getContent(), true, 16, \JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            return $this->error('the body is not valid JSON');
-        }
-        if (!\is_array($body) || ([] !== $body && array_is_list($body))) {
-            return $this->error('a JSON object with a query is required');
-        }
+            $input = CatalogRequest::read($request, $context);
+            $body = $input->body;
 
-        $query = \is_string($body['query'] ?? null) ? mb_substr(trim($body['query']), 0, self::MAX_QUERY_LENGTH) : '';
-        // An empty term would be `LIKE '%%'`: every product in the channel.
-        if ('' === $query) {
-            return $this->error('query is required and must be a non-empty string', '$.query');
-        }
-
-        $pagination = \is_array($body['pagination'] ?? null) ? $body['pagination'] : [];
-        $limit = $pagination['limit'] ?? self::DEFAULT_LIMIT;
-        if (!\is_int($limit) || $limit < 1) {
-            return $this->error('pagination.limit must be a positive integer', '$.pagination.limit');
-        }
-        $limit = min($limit, self::MAX_LIMIT);
-
-        $offset = 0;
-        if (isset($pagination['cursor'])) {
-            $offset = $this->decodeCursor($pagination['cursor']);
-            if (null === $offset) {
-                return $this->error('pagination.cursor is not a cursor this shop issued', '$.pagination.cursor');
+            $query = $body['query'] ?? null;
+            if (null !== $query && !\is_string($query)) {
+                throw new InvalidUcpRequestException('query must be a string.', '$.query');
             }
+            $query = mb_substr(trim((string) $query), 0, self::MAX_QUERY_LENGTH);
+            // No term and no filter would be `LIKE '%%'`: the whole channel by
+            // accident rather than by request.
+            if ('' === $query && $input->filter->isEmpty()) {
+                throw new InvalidUcpRequestException('A search needs a non-empty query or at least one filter (categories, price).', '$.query');
+            }
+
+            $pagination = $body['pagination'] ?? [];
+            if (!CatalogRequest::isObject($pagination)) {
+                throw new InvalidUcpRequestException('pagination must be an object.', '$.pagination');
+            }
+            $limit = $pagination['limit'] ?? self::DEFAULT_LIMIT;
+            if (!\is_int($limit) || $limit < 1) {
+                throw new InvalidUcpRequestException('pagination.limit must be a positive integer.', '$.pagination.limit');
+            }
+            $limit = min($limit, self::MAX_LIMIT);
+
+            $offset = 0;
+            if (\array_key_exists('cursor', $pagination)) {
+                $offset = $this->decodeCursor($pagination['cursor'])
+                    ?? throw new InvalidUcpRequestException('pagination.cursor is not a cursor this shop issued.', '$.pagination.cursor');
+            }
+        } catch (InvalidUcpRequestException $e) {
+            return UcpResponses::error(400, $this->version, self::CAPABILITY, 'invalid_request', $e->getMessage(), $e->path);
         }
+
         // decodeCursor() keeps the offset below MAX_RESULTS, so at least one row remains.
         $limit = min($limit, self::MAX_RESULTS - $offset);
 
-        $context = $this->contextFactory->create();
         // One row more than the page tells whether there is a next one.
-        $found = $this->products->search($context->channel, $context->localeCode, $query, $offset, $limit + 1);
+        $found = $this->products->search($context->channel, $input->localeCode, $query, $offset, $limit + 1, $input->filter);
         $hasNext = \count($found) > $limit && $offset + $limit < self::MAX_RESULTS;
 
         $products = [];
         foreach (\array_slice($found, 0, $limit) as $product) {
-            $mapped = $this->mapper->map($product, $context);
+            $mapped = $this->mapper->map($product, $context, $input->localeCode, $input->filter);
             if (null !== $mapped) {
                 $products[] = $mapped;
             }
@@ -109,16 +128,16 @@ final class CatalogSearchController
                 : ['has_next_page' => false],
         ];
 
-        $ignored = array_values(array_filter(['filters', 'context'], static fn (string $key): bool => isset($body[$key])));
-        if ([] !== $ignored) {
-            $payload['messages'] = [[
-                'type' => 'warning',
-                'code' => 'unsupported_input',
-                'content' => 'Not supported by this shop and ignored: '.implode(', ', $ignored).'.',
-            ]];
+        $messages = $input->messages;
+        $notice = [] === $products ? null : $this->ageRestriction->message('$.products');
+        if (null !== $notice) {
+            $messages[] = $notice;
+        }
+        if ([] !== $messages) {
+            $payload['messages'] = $messages;
         }
 
-        return new JsonResponse($payload);
+        return UcpResponses::json($payload);
     }
 
     private function encodeCursor(int $offset): string
@@ -132,29 +151,11 @@ final class CatalogSearchController
             return null;
         }
         $decoded = base64_decode(strtr($cursor, '-_', '+/'), true);
-        if (false === $decoded || 1 !== preg_match('/^o:(\d{1,4})$/', $decoded, $match)) {
+        if (false === $decoded || 1 !== preg_match('/^o:(0|[1-9]\d{0,3})$/', $decoded, $match)) {
             return null;
         }
         $offset = (int) $match[1];
 
         return $offset < self::MAX_RESULTS ? $offset : null;
-    }
-
-    /** A request this route cannot run: HTTP 400 with the UCP error response. */
-    private function error(string $content, ?string $path = null): JsonResponse
-    {
-        $message = ['type' => 'error', 'code' => 'invalid_request', 'content' => $content, 'severity' => 'unrecoverable'];
-        if (null !== $path) {
-            $message['path'] = $path;
-        }
-
-        return new JsonResponse([
-            'ucp' => [
-                'version' => $this->version,
-                'status' => 'error',
-                'capabilities' => [self::CAPABILITY => [['version' => $this->version]]],
-            ],
-            'messages' => [$message],
-        ], JsonResponse::HTTP_BAD_REQUEST);
     }
 }
