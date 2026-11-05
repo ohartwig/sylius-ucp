@@ -9,8 +9,6 @@ namespace Koh\SyliusUcp\Controller;
 
 use Koh\SyliusUcp\Exception\InvalidCheckoutRequestException;
 use Koh\SyliusUcp\Service\CheckoutSessionCreator;
-use Sylius\Component\Product\Model\ProductInterface;
-use Sylius\Component\Product\Repository\ProductRepositoryInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -18,60 +16,30 @@ use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * UCP REST capabilities (first pass): catalog listing + checkout-session creation.
- * Reads the agent profile from the `UCP-Agent` request header (capability
- * negotiation stub) and echoes the active capabilities under `ucp` per spec.
+ * Opt-in checkout-session creation backed by a Sylius cart.
+ *
+ * This is not the UCP checkout capability: there is no update, complete or
+ * cancel, and the response is not the UCP checkout shape. The profile therefore
+ * never declares `dev.ucp.shopping.checkout`, and the `ucp` member of the
+ * response names the version only, no capability.
  */
 final class CheckoutSessionController
 {
     /**
-     * @param ProductRepositoryInterface<ProductInterface> $productRepository
      * @param bool $checkoutEnabled `koh_sylius_ucp.checkout`; off by default, the
      *                              session route then answers 404 (AUD-034-F01)
      * @param RateLimiterFactory|null $checkoutLimiter keyed by client address; required
      *                                                 when checkout is enabled
      */
     public function __construct(
-        private readonly ProductRepositoryInterface $productRepository,
         private readonly CheckoutSessionCreator $checkoutSessionCreator,
-        private readonly string $version = '2026-04-08',
+        private readonly string $version = '2026-08-25',
         private readonly bool $checkoutEnabled = false,
         private readonly ?RateLimiterFactory $checkoutLimiter = null,
     ) {
         if ($this->checkoutEnabled && null === $this->checkoutLimiter) {
             throw new \LogicException('koh_sylius_ucp.checkout is enabled but no rate limiter is configured.');
         }
-    }
-
-    /** Upper bound on what one catalog call may serialise. */
-    private const MAX_RESULTS = 200;
-
-    #[Route('/ucp/v1/catalog', name: 'koh_ucp_catalog', methods: ['GET'])]
-    public function catalog(Request $request): JsonResponse
-    {
-        $locale = $request->query->get('localeCode', 'en_US');
-        $query = trim($request->query->get('q', ''));
-
-        // findByName() is a LIKE with no limit, and this route needs no
-        // credentials. An empty q makes it `LIKE '%%'` — every product in the
-        // shop, hydrated and serialised, for anyone who asks as often as they
-        // like. A catalog search without a search term is not a search.
-        if ('' === $query) {
-            return new JsonResponse(
-                $this->envelope(['error' => 'q is required', 'products' => []], $request),
-                JsonResponse::HTTP_BAD_REQUEST,
-            );
-        }
-
-        $products = array_map(
-            static fn ($p): array => ['code' => (string) $p->getCode(), 'name' => (string) $p->getName(), 'slug' => $p->getSlug()],
-            // Bounds the response. The repository has no limit of its own, so a
-            // very broad term still costs the query — narrowing that needs a
-            // repository-level limit this interface does not offer.
-            \array_slice($this->productRepository->findByName($query, $locale), 0, self::MAX_RESULTS),
-        );
-
-        return new JsonResponse($this->envelope(['products' => $products], $request));
     }
 
     #[Route('/ucp/v1/checkout-sessions', name: 'koh_ucp_checkout_session', methods: ['POST'])]
@@ -89,7 +57,7 @@ final class CheckoutSessionController
             $retryAfter = max(1, $limit->getRetryAfter()->getTimestamp() - time());
 
             return new JsonResponse(
-                $this->envelope(['error' => 'too many checkout sessions, retry later'], $request),
+                $this->envelope(['error' => 'too many checkout sessions, retry later']),
                 JsonResponse::HTTP_TOO_MANY_REQUESTS,
                 ['Retry-After' => (string) $retryAfter],
             );
@@ -99,12 +67,12 @@ final class CheckoutSessionController
             $session = $this->checkoutSessionCreator->create($this->lineItems($request));
         } catch (InvalidCheckoutRequestException $e) {
             return new JsonResponse(
-                $this->envelope(['error' => $e->getMessage()], $request),
+                $this->envelope(['error' => $e->getMessage()]),
                 JsonResponse::HTTP_BAD_REQUEST,
             );
         }
 
-        return new JsonResponse($this->envelope(['checkout_session' => $session], $request), JsonResponse::HTTP_CREATED);
+        return new JsonResponse($this->envelope(['checkout_session' => $session]), JsonResponse::HTTP_CREATED);
     }
 
     /**
@@ -150,17 +118,8 @@ final class CheckoutSessionController
      * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
-    private function envelope(array $payload, Request $request): array
+    private function envelope(array $payload): array
     {
-        // Capability negotiation stub: intersect our capabilities with the agent's
-        // advertised profile from the UCP-Agent header (RFC 8941). First pass: echo ours.
-        $agent = $request->headers->get('UCP-Agent', '');
-
-        $capabilities = ['dev.ucp.shopping.catalog'];
-        if ($this->checkoutEnabled) {
-            $capabilities[] = 'dev.ucp.shopping.checkout';
-        }
-
-        return $payload + ['ucp' => ['version' => $this->version, 'capabilities' => $capabilities, 'agent' => $agent]];
+        return $payload + ['ucp' => ['version' => $this->version]];
     }
 }

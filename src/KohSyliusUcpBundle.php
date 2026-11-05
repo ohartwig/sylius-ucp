@@ -21,15 +21,16 @@ final class KohSyliusUcpBundle extends AbstractBundle
         // defaults without duplicating them in their app config. Apps can still
         // override by defining these parameters before the bundle loads.
         if (!$builder->hasParameter('koh_sylius_ucp.version')) {
-            $builder->setParameter('koh_sylius_ucp.version', '2026-04-08');
+            $builder->setParameter('koh_sylius_ucp.version', '2026-08-25');
         }
         if (!$builder->hasParameter('koh_sylius_ucp.endpoint_base')) {
             $builder->setParameter('koh_sylius_ucp.endpoint_base', '/ucp/v1');
         }
         // The checkout-session route writes a cart for an anonymous caller, so
-        // it is opt-in (AUD-034-F01): off, the route answers 404 and neither the
-        // profile nor the OpenAPI document advertises it. Set it from the same
-        // decision as `koh_acp.checkout`.
+        // it is opt-in (AUD-034-F01): off, the route answers 404 and the OpenAPI
+        // document does not describe it. The UCP profile never declares it: the
+        // route is not the UCP checkout capability. Set it from the same decision
+        // as `koh_acp.checkout`.
         if (!$builder->hasParameter('koh_sylius_ucp.checkout')) {
             $builder->setParameter('koh_sylius_ucp.checkout', false);
         }

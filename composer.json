@@ -17,6 +17,7 @@
     "require": {
         "php": "^8.3",
         "koh/sylius-agent-contracts": "^1.1",
+        "doctrine/orm": "^2.18 || ^3.5",
         "doctrine/persistence": "^3.3 || ^4.0",
         "sylius/sylius": "^2.2.9 || ^2.3.0",
         "symfony/dependency-injection": "^6.4 || ^7.4",
