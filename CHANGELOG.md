@@ -1,3 +1,13 @@
+## [1.2.1](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.2.0...v1.2.1) (2026-11-06)
+
+### :bug: Fixes
+
+* **handoff:** release the switch to the shared CartHandoff ([c972fa4](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/c972fa43172c0383232a56774096ced14568ce3c))
+
+### :zap: Refactor
+
+* **permalink:** use the shared CartHandoff from koh/sylius-agent-contracts ([d00d5ce](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/d00d5cea18d42662589951f385d570b111aba114))
+
 ## [1.2.0](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.1.25...v1.2.0) (2026-11-05)
 
 ### :sparkles: Features
