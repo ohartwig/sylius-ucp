@@ -1,3 +1,9 @@
+## [1.2.2](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.2.1...v1.2.2) (2026-11-06)
+
+### :bug: Fixes
+
+* **deps:** update composer packages to ^3.8.1 ([863fd32](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/commit/863fd324dd60f501ecc67dcfbbe8ccf8493f9819))
+
 ## [1.2.1](https://git.ole-hartwig.eu/ai-ready-platform/platform/sylius-ucp/compare/v1.2.0...v1.2.1) (2026-11-06)
 
 ### :bug: Fixes
